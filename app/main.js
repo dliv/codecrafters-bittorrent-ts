@@ -1,3 +1,4 @@
+const fs = require("fs");
 const process = require("process");
 
 class Token {
@@ -18,7 +19,8 @@ class IntToken extends Token {
 
 class StrToken extends Token {
   toString() {
-    return `"${this.str}"`;
+    // return `"${this.str}"`;
+    return JSON.stringify(this.str);
   }
 }
 
@@ -96,6 +98,7 @@ class TokenStream {
       nextDelims = [...nextDelims];
       nextDelims.pop();
     }
+
     const needsArrSep =
       this.openDelims.at(-1) instanceof OpenArrayToken &&
       !(t instanceof CloseArrayToken) &&
@@ -105,8 +108,6 @@ class TokenStream {
       this.openDelims.at(-1) instanceof OpenDictToken &&
       this.tokens.at(-1) instanceof StrToken &&
       !(this.tokens.at(-2) instanceof KvSeparatorToken);
-    // (this.tokens.at(-2) instanceof KvSeparatorToken ||
-    //   this.tokens.at(-2) instanceof OpenDictToken);
 
     const needsDictSep =
       !needsKvSep &&
@@ -121,21 +122,13 @@ class TokenStream {
       throw new Error("cannot need kv and dict/arr sep");
     }
 
-    let nextTokens =
+    const nextTokens =
       needsArrSep || needsDictSep
         ? this.tokens.concat(new SeparatorToken())
         : needsKvSep
         ? this.tokens.concat(new KvSeparatorToken())
         : this.tokens;
-    console.error(
-      `>>> incoming: ${t}\n\ttokens: ${this.tokens.join(
-        " "
-      )}\n\tdelims: ${this.openDelims.join(" ")}\n\tstate: ${JSON.stringify({
-        needsArrSep,
-        needsKvSep,
-        needsDictSep,
-      })}`
-    );
+
     return new TokenStream(nextTokens.concat(t), nextDelims);
   }
 
@@ -172,7 +165,6 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
   if (bencodedValue[idx] === "e") {
     return decodeBencode(bencodedValue, idx + 1, tokens.end());
   }
-  // Check if the first character is a digit
   if (!isNaN(bencodedValue[idx])) {
     let next = idx;
     let size = bencodedValue[idx];
@@ -189,9 +181,6 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
     while (ate++ < sizeNum) {
       str += bencodedValue[next++];
     }
-    // if (next < bencodedValue.length) {
-    //   throw new Error("did not consume entire str");
-    // }
     return decodeBencode(bencodedValue, next, tokens.add(new StrToken(str)));
   }
   if (bencodedValue[idx] === "i") {
@@ -200,6 +189,7 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
     while (bencodedValue[next] !== "e" && next < bencodedValue.length) {
       num += bencodedValue[next++];
     }
+    // this fails for BigInts, not really needed (could check for \d)
     let parsed = Number.parseInt(num, 10);
     if (!Number.isSafeInteger(parsed)) {
       throw new Error("invalid integer");
@@ -215,14 +205,35 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
   throw new Error("Unknown token type");
 }
 
+function info(file) {
+  const contents = fs.readFileSync(file, "utf8")?.trim();
+  const decoded = decodeBencode(contents);
+  const parsed = JSON.parse(decoded);
+  const infoStr = [
+    ["Tracker URL", parsed.announce],
+    ["Length", parsed.info.length],
+  ]
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+  return infoStr;
+}
+
 function main() {
   const command = process.argv[2];
 
-  if (command === "decode") {
-    const bencodedValue = process.argv[3];
-    console.log(String(decodeBencode(bencodedValue)));
-  } else {
-    throw new Error(`Unknown command ${command}`);
+  switch (command) {
+    case "decode": {
+      const bencodedValue = process.argv[3];
+      console.log(String(decodeBencode(bencodedValue)));
+      break;
+    }
+    case "info": {
+      const file = process.argv[3];
+      console.log(info(file));
+      break;
+    }
+    default:
+      throw new Error("Not implemented");
   }
 }
 
