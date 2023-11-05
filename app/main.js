@@ -207,8 +207,11 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
 
 function info(file) {
   const contents = fs.readFileSync(file, "utf8")?.trim();
+  console.error(`>>> contents:\n${contents}`);
   const decoded = decodeBencode(contents);
+  console.error(`>>> decoded:\n${decoded}`);
   const parsed = JSON.parse(decoded);
+  console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
   const infoStr = [
     ["Tracker URL", parsed.announce],
     ["Length", parsed.info.length],
