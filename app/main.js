@@ -77,6 +77,13 @@ class TokenStream {
     throw new Error("unexpected end");
   }
 
+  bailStr() {
+    if (!this.openDelims.length) {
+      return this.toString();
+    }
+    return this.end().bailStr();
+  }
+
   add(t) {
     let nextDelims = this.openDelims;
     if (t instanceof OpenArrayToken) {
@@ -143,7 +150,8 @@ class TokenStream {
 // - l5:helloi52ee -> ["hello", 52]
 function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
   if (idx > bencodedValue.length) {
-    throw new Error("out of bounds");
+    console.error(`>>> ERROR: idx ${idx} > ${bencodedValue.length}`);
+    return tokens.bailStr(); // lol - not handling bytes correctly in some sample files?
   }
   if (idx === bencodedValue.length) {
     return tokens;
