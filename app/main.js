@@ -1,6 +1,8 @@
 const fs = require("fs");
 const process = require("process");
 
+// TODO: dict keys need to be sorted
+
 class Token {
   constructor(str) {
     this.str = str;
@@ -11,15 +13,15 @@ class Token {
   }
 }
 
-class IntToken extends Token {
-  static fromInt(i) {
-    return new IntToken(i.toString());
-  }
-}
+class IntToken extends Token {}
 
 class StrToken extends Token {
+  constructor(strBytes) {
+    const buffer = Buffer.from(strBytes);
+    super(buffer.toString("utf8"));
+    this.buffer = buffer;
+  }
   toString() {
-    // return `"${this.str}"`;
     return JSON.stringify(this.str);
   }
 }
@@ -144,77 +146,77 @@ class TokenStream {
   }
 }
 
+const asByte = (ch) => ch.charCodeAt(0);
+
+const I = asByte("i");
+const E = asByte("e");
+const COLON = asByte(":");
+const $0 = asByte("0");
+const $9 = asByte("9");
+const L = asByte("l");
+const D = asByte("d");
+
+const intFromByte = (b) => Number.parseInt(String.fromCharCode(b), 10);
+
 // Examples:
 // - decodeBencode("5:hello") -> "hello"
 // - decodeBencode("10:hello12345") -> "hello12345"
 // - l5:helloi52ee -> ["hello", 52]
-function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
-  if (idx > bencodedValue.length) {
-    console.error(`>>> ERROR: idx ${idx} > ${bencodedValue.length}`);
+function decodeBencode(bytes, idx = 0, tokens = new TokenStream()) {
+  if (idx > bytes.length) {
+    console.error(`>>> ERROR: idx ${idx} > ${bytes.length}`);
     return tokens.bailStr(); // lol - not handling bytes correctly in some sample files?
   }
-  if (idx === bencodedValue.length) {
+  if (idx === bytes.length) {
     return tokens;
   }
-  if (bencodedValue[idx] === "d") {
-    return decodeBencode(
-      bencodedValue,
-      idx + 1,
-      tokens.add(new OpenDictToken())
-    );
+  if (bytes[idx] === D) {
+    return decodeBencode(bytes, idx + 1, tokens.add(new OpenDictToken()));
   }
-  if (bencodedValue[idx] === "l") {
-    return decodeBencode(
-      bencodedValue,
-      idx + 1,
-      tokens.add(new OpenArrayToken())
-    );
+  if (bytes[idx] === L) {
+    return decodeBencode(bytes, idx + 1, tokens.add(new OpenArrayToken()));
   }
-  if (bencodedValue[idx] === "e") {
-    return decodeBencode(bencodedValue, idx + 1, tokens.end());
+  if (bytes[idx] === E) {
+    return decodeBencode(bytes, idx + 1, tokens.end());
   }
-  if (!isNaN(bencodedValue[idx])) {
+  if (!isNaN(intFromByte(bytes[idx]))) {
     let next = idx;
-    let size = bencodedValue[idx];
-    while (!isNaN(bencodedValue[++next])) {
-      size += bencodedValue[next];
+    const sizeBytes = [bytes[idx]];
+    while (!isNaN(intFromByte(bytes[++next]))) {
+      sizeBytes.push(bytes[next]);
     }
-    if (!bencodedValue[next] === ":") {
+    if (!bytes[next] === COLON) {
       throw new Error("expected :");
     }
     ++next;
-    const sizeNum = Number.parseInt(size);
-    let str = "";
+    const sizeStr = Buffer.from(sizeBytes).toString("utf8");
+    const sizeNum = Number.parseInt(sizeStr, 10);
+    const strBytes = [];
     let ate = 0;
     while (ate++ < sizeNum) {
-      str += bencodedValue[next++];
+      strBytes.push(bytes[next++]);
     }
-    return decodeBencode(bencodedValue, next, tokens.add(new StrToken(str)));
+    return decodeBencode(bytes, next, tokens.add(new StrToken(strBytes)));
   }
-  if (bencodedValue[idx] === "i") {
+  if (bytes[idx] === I) {
     let next = idx + 1;
-    let num = "";
-    while (bencodedValue[next] !== "e" && next < bencodedValue.length) {
-      num += bencodedValue[next++];
+    const numBytes = [];
+    while (bytes[next] !== E && next < bytes.length) {
+      const numB = bytes[next++];
+      if (numB < $0 || numB > $9) {
+        throw new Error(`invalid integer byte ${numB}`);
+      }
+      numBytes.push(numB);
     }
-    // this fails for BigInts, not really needed (could check for \d)
-    let parsed = Number.parseInt(num, 10);
-    if (!Number.isSafeInteger(parsed)) {
-      throw new Error("invalid integer");
-    }
-    const str = String(parsed);
+    const numStr = Buffer.from(numBytes).toString("utf8");
     ++next;
-    return decodeBencode(
-      bencodedValue,
-      next,
-      tokens.add(IntToken.fromInt(parsed))
-    );
+    return decodeBencode(bytes, next, tokens.add(new IntToken(numStr)));
   }
   throw new Error("Unknown token type");
 }
 
 function info(file) {
-  const contents = fs.readFileSync(file, "utf8")?.trim();
+  const contents = fs.readFileSync(file);
   console.error(`>>> contents:\n${contents}`);
   const decoded = decodeBencode(contents);
   console.error(`>>> decoded:\n${decoded}`);
@@ -235,7 +237,8 @@ function main() {
   switch (command) {
     case "decode": {
       const bencodedValue = process.argv[3];
-      console.log(String(decodeBencode(bencodedValue)));
+      const bytes = Buffer.from(bencodedValue, "utf8");
+      console.log(String(decodeBencode(bytes)));
       break;
     }
     case "info": {
