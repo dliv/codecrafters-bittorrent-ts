@@ -151,6 +151,7 @@ const asByte = (ch) => ch.charCodeAt(0);
 const I = asByte("i");
 const E = asByte("e");
 const COLON = asByte(":");
+const HYPHEN = asByte("-");
 const $0 = asByte("0");
 const $9 = asByte("9");
 const L = asByte("l");
@@ -201,6 +202,9 @@ function decodeBencode(bytes, idx = 0, tokens = new TokenStream()) {
   if (bytes[idx] === I) {
     let next = idx + 1;
     const numBytes = [];
+    if (bytes[next] === HYPHEN) {
+      numBytes.push(bytes[next++]);
+    }
     while (bytes[next] !== E && next < bytes.length) {
       const numB = bytes[next++];
       if (numB < $0 || numB > $9) {
