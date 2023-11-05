@@ -1,7 +1,9 @@
-const fs = require("fs");
-const process = require("process");
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const process = require("node:process");
 
-// TODO: dict keys need to be sorted
+// serialization issues when round tripping bytes to "chars" to bytes
+const hackStrToBytes = new Map();
 
 class Token {
   constructor(str) {
@@ -18,7 +20,9 @@ class IntToken extends Token {}
 class StrToken extends Token {
   constructor(strBytes) {
     const buffer = Buffer.from(strBytes);
-    super(buffer.toString("utf8"));
+    const str = buffer.toString("utf8");
+    hackStrToBytes.set(str, strBytes);
+    super(str);
     this.buffer = buffer;
   }
   toString() {
@@ -142,7 +146,10 @@ class TokenStream {
   }
 
   toString() {
-    return this.tokens.join("");
+    const raw = this.tokens.join("");
+    const parsed = JSON.parse(raw);
+    const str = JSON.stringify(parsed);
+    return str;
   }
 }
 
@@ -226,13 +233,47 @@ function info(file) {
   console.error(`>>> decoded:\n${decoded}`);
   const parsed = JSON.parse(decoded);
   console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
+  const { announce, info } = parsed;
+  const encodedInfo = encodeDict(info);
+  console.error(`>>> encoded info:\n${encodedInfo}`);
+  console.error(`>>> round-trip info:\n${decodeBencode(encodedInfo)}`);
+  const hasher = crypto.createHash("sha1");
+  hasher.update(encodedInfo);
+  const sha1 = hasher.digest("hex");
   const infoStr = [
-    ["Tracker URL", parsed.announce],
-    ["Length", parsed.info.length],
+    ["Tracker URL", announce],
+    ["Length", info.length],
+    ["Info Hash", sha1],
   ]
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
   return infoStr;
+}
+
+function encodeDict(dict) {
+  const keys = Object.keys(dict).sort();
+  const bytes = [asByte("d")];
+  for (const key of keys) {
+    const keyStr = `${key.length}:${key}`;
+    bytes.push(Array.from(Buffer.from(keyStr, "utf8")));
+    const val = dict[key];
+    if (typeof val === "number") {
+      const intStr = `i${val}e`;
+      bytes.push(Array.from(Buffer.from(intStr, "utf8")));
+    } else if (typeof val === "string") {
+      const strBytes = hackStrToBytes.get(val);
+      if (!strBytes) {
+        throw new Error(`no bytes for ${val}`);
+      }
+      const prefix = `${strBytes.length}:`;
+      bytes.push(Array.from(Buffer.from(prefix, "utf8")));
+      bytes.push(strBytes);
+    } else {
+      throw new Error(`unsupported val type for ${val}`);
+    }
+  }
+  bytes.push(asByte("e"));
+  return Buffer.from(bytes.flat());
 }
 
 function main() {
