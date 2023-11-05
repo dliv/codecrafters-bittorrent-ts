@@ -34,9 +34,27 @@ class CloseArrayToken extends Token {
   }
 }
 
-class ArraySeparatorToken extends Token {
+class OpenDictToken extends Token {
+  toString() {
+    return `{`;
+  }
+}
+
+class CloseDictToken extends Token {
+  toString() {
+    return `}`;
+  }
+}
+
+class SeparatorToken extends Token {
   toString() {
     return `, `;
+  }
+}
+
+class KvSeparatorToken extends Token {
+  toString() {
+    return `: `;
   }
 }
 
@@ -51,13 +69,17 @@ class TokenStream {
     if (top instanceof OpenArrayToken) {
       return this.add(new CloseArrayToken());
     }
-    // TODO: dictionary
+    if (top instanceof OpenDictToken) {
+      return this.add(new CloseDictToken());
+    }
     throw new Error("unexpected end");
   }
 
   add(t) {
     let nextDelims = this.openDelims;
     if (t instanceof OpenArrayToken) {
+      nextDelims = nextDelims.concat(t);
+    } else if (t instanceof OpenDictToken) {
       nextDelims = nextDelims.concat(t);
     } else if (t instanceof CloseArrayToken) {
       const top = nextDelims.at(-1);
@@ -66,15 +88,54 @@ class TokenStream {
       }
       nextDelims = [...nextDelims];
       nextDelims.pop();
+    } else if (t instanceof CloseDictToken) {
+      const top = nextDelims.at(-1);
+      if (!(top instanceof OpenDictToken)) {
+        throw new Error("unmatched close dict token");
+      }
+      nextDelims = [...nextDelims];
+      nextDelims.pop();
     }
     const needsArrSep =
       this.openDelims.at(-1) instanceof OpenArrayToken &&
       !(t instanceof CloseArrayToken) &&
       !(this.tokens.at(-1) instanceof OpenArrayToken);
-    let nextTokens = needsArrSep
-      ? this.tokens.concat(new ArraySeparatorToken())
-      : this.tokens;
-    // TODO: dictionary
+
+    const needsKvSep =
+      this.openDelims.at(-1) instanceof OpenDictToken &&
+      this.tokens.at(-1) instanceof StrToken &&
+      !(this.tokens.at(-2) instanceof KvSeparatorToken);
+    // (this.tokens.at(-2) instanceof KvSeparatorToken ||
+    //   this.tokens.at(-2) instanceof OpenDictToken);
+
+    const needsDictSep =
+      !needsKvSep &&
+      this.openDelims.at(-1) instanceof OpenDictToken &&
+      !(t instanceof CloseDictToken) &&
+      !(this.tokens.at(-1) instanceof OpenDictToken);
+
+    if (needsArrSep && needsDictSep) {
+      throw new Error("cannot need both");
+    }
+    if (needsKvSep && (needsDictSep || needsArrSep)) {
+      throw new Error("cannot need kv and dict/arr sep");
+    }
+
+    let nextTokens =
+      needsArrSep || needsDictSep
+        ? this.tokens.concat(new SeparatorToken())
+        : needsKvSep
+        ? this.tokens.concat(new KvSeparatorToken())
+        : this.tokens;
+    console.error(
+      `>>> incoming: ${t}\n\ttokens: ${this.tokens.join(
+        " "
+      )}\n\tdelims: ${this.openDelims.join(" ")}\n\tstate: ${JSON.stringify({
+        needsArrSep,
+        needsKvSep,
+        needsDictSep,
+      })}`
+    );
     return new TokenStream(nextTokens.concat(t), nextDelims);
   }
 
@@ -93,6 +154,13 @@ function decodeBencode(bencodedValue, idx = 0, tokens = new TokenStream()) {
   }
   if (idx === bencodedValue.length) {
     return tokens;
+  }
+  if (bencodedValue[idx] === "d") {
+    return decodeBencode(
+      bencodedValue,
+      idx + 1,
+      tokens.add(new OpenDictToken())
+    );
   }
   if (bencodedValue[idx] === "l") {
     return decodeBencode(
