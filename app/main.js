@@ -1,6 +1,7 @@
 var $jC3rJ$nodecrypto = require("node:crypto");
 var $jC3rJ$nodefs = require("node:fs");
 var $jC3rJ$nodehttp = require("node:http");
+var $jC3rJ$nodeurl = require("node:url");
 
 
 function $parcel$interopDefault(a) {
@@ -277,6 +278,33 @@ function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
 
 
 
+
+function $943666640c6ab86a$export$ad87d97dc3739470(requestUrl, maxRedirects = 7) {
+    return new Promise((resolve, reject)=>{
+        (0, ($parcel$interopDefault($jC3rJ$nodehttp))).get(requestUrl, (res)=>{
+            const isRedirect = res.statusCode === 301 || res.statusCode === 302;
+            if (isRedirect && maxRedirects < 1) return reject(new Error("Too many redirects"));
+            else if (isRedirect) {
+                const newLocation = res.headers.location;
+                const newUrl = newLocation.startsWith("http://") || newLocation.startsWith("https://") ? newLocation : new (0, ($parcel$interopDefault($jC3rJ$nodeurl))).URL(newLocation, requestUrl).href;
+                return $943666640c6ab86a$export$ad87d97dc3739470(newUrl, maxRedirects - 1).then(resolve).catch(reject);
+            }
+            if (res.statusCode < 200 || res.statusCode >= 300) return reject(new Error("StatusCode=" + res.statusCode + ` url=${0, ($parcel$interopDefault($jC3rJ$nodeurl))}`));
+            const chunks = [];
+            res.on("data", (chunk)=>{
+                chunks.push(chunk);
+            });
+            res.on("end", ()=>{
+                const buffer = Buffer.concat(chunks);
+                resolve(buffer);
+            });
+        }).on("error", (err)=>{
+            reject(err);
+        });
+    });
+}
+
+
 const $1f1932f95910f014$var$peerId = "a79a7e603a3d4357b52f";
 const $1f1932f95910f014$var$PORT = "6881";
 async function $1f1932f95910f014$export$f05eafe0156b3b47(file) {
@@ -286,7 +314,7 @@ async function $1f1932f95910f014$export$f05eafe0156b3b47(file) {
 async function $1f1932f95910f014$export$a8157895bd9c53da(file) {
     const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file);
     const url = $1f1932f95910f014$var$getPeersUrl(info);
-    const respStr = await $1f1932f95910f014$var$httpGetBuffer(url);
+    const respStr = await (0, $943666640c6ab86a$export$ad87d97dc3739470)(url);
     const decoded = $1f1932f95910f014$export$6563632edab52a01(respStr);
     return decoded;
 }
@@ -347,28 +375,6 @@ function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
         encoded.push(e);
     }
     return encoded.join("");
-}
-function $1f1932f95910f014$var$httpGetBuffer(url, maxRedirects = 7) {
-    return new Promise((resolve, reject)=>{
-        (0, ($parcel$interopDefault($jC3rJ$nodehttp))).get(url, (res)=>{
-            const isRedirect = res.statusCode === 301 || res.statusCode === 302;
-            if (isRedirect && maxRedirects < 1) return reject(new Error("Too many redirects"));
-            else if (isRedirect) return $1f1932f95910f014$var$httpGetBuffer(res.headers.location, maxRedirects - 1).then(resolve).catch(reject);
-            if (res.statusCode < 200 || res.statusCode >= 300) return reject(new Error("StatusCode=" + res.statusCode + ` url=${url}`));
-            const chunks = [];
-            // Collect chunks of data
-            res.on("data", (chunk)=>{
-                chunks.push(chunk);
-            });
-            // The whole response has been received. Combine the chunks and resolve.
-            res.on("end", ()=>{
-                const buffer = Buffer.concat(chunks);
-                resolve(buffer);
-            });
-        }).on("error", (err)=>{
-            reject(err);
-        });
-    });
 }
 
 

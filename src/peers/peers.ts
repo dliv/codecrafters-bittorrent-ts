@@ -1,8 +1,7 @@
-import http from 'node:http';
-
-import { getInfo } from '../info/info';
 import { decodeBencode } from '../decode';
 import { hackStrToBytes } from '../hack';
+import { getInfo } from '../info';
+import { httpGetBuffer } from './http-get-buffer';
 
 const peerId = 'a79a7e603a3d4357b52f';
 const PORT = '6881';
@@ -79,42 +78,4 @@ export function encodeInfoHash(hexStr: string): string {
     encoded.push(e);
   }
   return encoded.join('');
-}
-
-function httpGetBuffer(url: string, maxRedirects = 7): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    http
-      .get(url, (res) => {
-        const isRedirect = res.statusCode === 301 || res.statusCode === 302;
-        if (isRedirect && maxRedirects < 1) {
-          return reject(new Error('Too many redirects'));
-        } else if (isRedirect) {
-          return httpGetBuffer(res.headers.location, maxRedirects - 1)
-            .then(resolve)
-            .catch(reject);
-        }
-
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(
-            new Error('StatusCode=' + res.statusCode + ` url=${url}`),
-          );
-        }
-
-        const chunks = [];
-
-        // Collect chunks of data
-        res.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-
-        // The whole response has been received. Combine the chunks and resolve.
-        res.on('end', () => {
-          const buffer = Buffer.concat(chunks);
-          resolve(buffer);
-        });
-      })
-      .on('error', (err) => {
-        reject(err);
-      });
-  });
 }

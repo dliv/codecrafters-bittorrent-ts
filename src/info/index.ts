@@ -1,1 +1,1 @@
-export { infoCommand } from './info';
+export { getInfo, infoCommand } from './info';
