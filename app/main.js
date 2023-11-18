@@ -178,6 +178,7 @@ function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new 
 
 
 
+
 function $b18cbde4f374671f$export$a92a1eaeb06ea361(dict) {
     const keys = Object.keys(dict).sort();
     const bytes = [
@@ -207,18 +208,19 @@ function $b18cbde4f374671f$export$a92a1eaeb06ea361(dict) {
 
 function $0a38c752b5042f46$export$a80b3bd66acc52ff(file) {
     const contents = $jC3rJ$nodefs.readFileSync(file);
-    console.error(`>>> contents:\n${contents}`);
     const decoded = (0, $e4e5653eb30567a4$export$a1124e132c740495)(contents);
-    console.error(`>>> decoded:\n${decoded}`);
     const parsed = JSON.parse(decoded);
-    console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
     const { announce: announce, info: info } = parsed;
     const encodedInfo = (0, $b18cbde4f374671f$export$a92a1eaeb06ea361)(info);
-    console.error(`>>> encoded info:\n${encodedInfo}`);
-    console.error(`>>> round-trip info:\n${(0, $e4e5653eb30567a4$export$a1124e132c740495)(encodedInfo)}`);
     const hasher = $jC3rJ$nodecrypto.createHash("sha1");
     hasher.update(encodedInfo);
     const sha1 = hasher.digest("hex");
+    const piecesConcat = (0, $3e273184e3a72f2a$export$226a103a52ef3067).get(info.pieces);
+    const pieceHashes = [];
+    for(let i = 0; i < piecesConcat.length; i += 20){
+        const p = piecesConcat.slice(i, i + 20);
+        pieceHashes.push(Buffer.from(p).toString("hex"));
+    }
     const infoStr = [
         [
             "Tracker URL",
@@ -231,8 +233,17 @@ function $0a38c752b5042f46$export$a80b3bd66acc52ff(file) {
         [
             "Info Hash",
             sha1
+        ],
+        [
+            "Piece Length",
+            info["piece length"]
+        ],
+        [
+            "Piece Hashes",
+            pieceHashes.join("\n"),
+            "\n"
         ]
-    ].map(([k, v])=>`${k}: ${v}`).join("\n");
+    ].map(([k, v, delim = " "])=>`${k}:${delim}${v}`).join("\n");
     return infoStr;
 }
 

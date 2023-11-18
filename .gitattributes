@@ -1,3 +1,4 @@
 * text=auto
 *.torrent binary
 *.js binary
+*.map binary
