@@ -81,12 +81,23 @@ export function encodeInfoHash(hexStr: string): string {
   return encoded.join('');
 }
 
-function httpGetBuffer(url: string): Promise<Buffer> {
+function httpGetBuffer(url: string, maxRedirects = 7): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     http
       .get(url, (res) => {
+        const isRedirect = res.statusCode === 301 || res.statusCode === 302;
+        if (isRedirect && maxRedirects < 1) {
+          return reject(new Error('Too many redirects'));
+        } else if (isRedirect) {
+          return httpGetBuffer(res.headers.location, maxRedirects - 1)
+            .then(resolve)
+            .catch(reject);
+        }
+
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error('StatusCode=' + res.statusCode));
+          return reject(
+            new Error('StatusCode=' + res.statusCode + ` url=${url}`),
+          );
         }
 
         const chunks = [];

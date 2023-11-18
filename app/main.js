@@ -348,10 +348,13 @@ function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
     }
     return encoded.join("");
 }
-function $1f1932f95910f014$var$httpGetBuffer(url) {
+function $1f1932f95910f014$var$httpGetBuffer(url, maxRedirects = 7) {
     return new Promise((resolve, reject)=>{
         (0, ($parcel$interopDefault($jC3rJ$nodehttp))).get(url, (res)=>{
-            if (res.statusCode < 200 || res.statusCode >= 300) return reject(new Error("StatusCode=" + res.statusCode));
+            const isRedirect = res.statusCode === 301 || res.statusCode === 302;
+            if (isRedirect && maxRedirects < 1) return reject(new Error("Too many redirects"));
+            else if (isRedirect) return $1f1932f95910f014$var$httpGetBuffer(res.headers.location, maxRedirects - 1).then(resolve).catch(reject);
+            if (res.statusCode < 200 || res.statusCode >= 300) return reject(new Error("StatusCode=" + res.statusCode + ` url=${url}`));
             const chunks = [];
             // Collect chunks of data
             res.on("data", (chunk)=>{
