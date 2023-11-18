@@ -1,3 +1,5 @@
+var $jC3rJ$nodeassert = require("node:assert");
+var $jC3rJ$nodenet = require("node:net");
 var $jC3rJ$nodecrypto = require("node:crypto");
 var $jC3rJ$nodefs = require("node:fs");
 var $jC3rJ$nodehttp = require("node:http");
@@ -192,6 +194,8 @@ function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new 
 
 
 
+
+
 function $b18cbde4f374671f$export$a92a1eaeb06ea361(dict) {
     const keys = Object.keys(dict).sort();
     const bytes = [
@@ -270,6 +274,80 @@ function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
     ].map(([k, v, delim = " "])=>`${k}:${delim}${v}`).join("\n");
     return infoStr;
 }
+
+
+
+
+async function $2ff16d2e43a79b67$export$e90fdf5f0bf87fd(file, peer) {
+    const resp = await $2ff16d2e43a79b67$export$92a128e20f9ed1e(file, peer);
+    return `Peer ID: ${resp.toString("hex")}`;
+}
+async function $2ff16d2e43a79b67$export$92a128e20f9ed1e(file, peer) {
+    const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file);
+    const handshake = $2ff16d2e43a79b67$var$getHandshake(info);
+    const handshakeResp = await $2ff16d2e43a79b67$var$getHandshakeResponse(peer, handshake);
+    return handshakeResp;
+}
+function $2ff16d2e43a79b67$var$getHandshake(info) {
+    const length = Buffer.from([
+        19
+    ]);
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(length.length === 1, "length.length !== 1");
+    const protocol = Buffer.from("BitTorrent protocol");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(protocol.length === 19, "protocol.length !== 19");
+    const reserved = Buffer.from([
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ]);
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(reserved.length === 8, "reserved.length !== 8");
+    const infoHash = Buffer.from(info.sha1, "hex");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(infoHash.length === 20, "infoHash.length !== 20");
+    const peerId = Buffer.from("00112233445566778899");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(peerId.length === 20, "peerId.length !== 20");
+    const handshake = Buffer.concat([
+        length,
+        protocol,
+        reserved,
+        infoHash,
+        peerId
+    ]);
+    console.error(`sent handshake.length ${handshake.length}, as hex:\t\n${handshake.toString("hex")}`);
+    return handshake;
+}
+async function $2ff16d2e43a79b67$var$getHandshakeResponse(peer, handshake) {
+    const [host, portStr] = peer.split(":");
+    const port = Number.parseInt(portStr, 10);
+    if (!(Number.isSafeInteger(port) && port > 0)) throw new Error(`bad port: ${portStr}`);
+    return new Promise((resolve, reject)=>{
+        const client = new (0, ($parcel$interopDefault($jC3rJ$nodenet))).Socket();
+        client.connect(port, host, ()=>{
+            console.error("TCP connection established");
+            client.write(handshake);
+        });
+        client.on("data", (data)=>{
+            console.error("Received:", data);
+            // hopefully the whole msg fits in one data
+            resolve(data);
+            console.error(`got handshake.length ${data.length}, as hex:\t\n${data.toString("hex")}`);
+            client.end();
+        });
+        client.on("close", ()=>{
+            console.error("Connection closed");
+            reject(new Error(`closed before promise fulfilled`));
+        });
+        client.on("error", (err)=>{
+            console.error("Error:", err);
+            reject(err);
+        });
+    });
+}
+
 
 
 
@@ -401,8 +479,15 @@ async function $3f97e85369539468$export$f22da7240b7add18() {
                 console.log(await (0, $1f1932f95910f014$export$f05eafe0156b3b47)(file));
                 break;
             }
+        case "handshake":
+            {
+                const file = process.argv[3];
+                const peer = process.argv[4];
+                console.log(await (0, $2ff16d2e43a79b67$export$e90fdf5f0bf87fd)(file, peer));
+                break;
+            }
         default:
-            throw new Error("Not implemented");
+            throw new Error(`Unknown command: ${command}`);
     }
 }
 

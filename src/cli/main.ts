@@ -1,4 +1,5 @@
 import { decodeCommand } from '../decode';
+import { handshakeCommand } from '../handshake';
 import { infoCommand } from '../info';
 import { peersCommand } from '../peers';
 
@@ -21,7 +22,13 @@ export async function main() {
       console.log(await peersCommand(file));
       break;
     }
+    case 'handshake': {
+      const file = process.argv[3];
+      const peer = process.argv[4];
+      console.log(await handshakeCommand(file, peer));
+      break;
+    }
     default:
-      throw new Error('Not implemented');
+      throw new Error(`Unknown command: ${command}`);
   }
 }
