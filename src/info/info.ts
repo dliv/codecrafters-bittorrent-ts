@@ -2,28 +2,34 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 
 import { decodeBencode } from '../decode';
+import { hackStrToBytes } from '../hack';
 import { encodeDict } from './encode-dict';
 
 export function info(file: string) {
   const contents = fs.readFileSync(file);
-  console.error(`>>> contents:\n${contents}`);
   const decoded = decodeBencode(contents);
-  console.error(`>>> decoded:\n${decoded}`);
   const parsed = JSON.parse(decoded);
-  console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
   const { announce, info } = parsed;
   const encodedInfo = encodeDict(info);
-  console.error(`>>> encoded info:\n${encodedInfo}`);
-  console.error(`>>> round-trip info:\n${decodeBencode(encodedInfo)}`);
   const hasher = crypto.createHash('sha1');
   hasher.update(encodedInfo);
   const sha1 = hasher.digest('hex');
+
+  const piecesConcat = hackStrToBytes.get(info.pieces);
+  const pieceHashes: string[] = [];
+  for (let i = 0; i < piecesConcat.length; i += 20) {
+    const p = piecesConcat.slice(i, i + 20);
+    pieceHashes.push(Buffer.from(p).toString('hex'));
+  }
+
   const infoStr = [
     ['Tracker URL', announce],
     ['Length', info.length],
     ['Info Hash', sha1],
+    ['Piece Length', info['piece length']],
+    ['Piece Hashes', pieceHashes.join('\n'), '\n'],
   ]
-    .map(([k, v]) => `${k}: ${v}`)
+    .map(([k, v, delim = ' ']) => `${k}:${delim}${v}`)
     .join('\n');
   return infoStr;
 }
