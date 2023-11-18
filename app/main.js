@@ -1,299 +1,267 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const process = require("node:process");
+var $jC3rJ$nodecrypto = require("node:crypto");
+var $jC3rJ$nodefs = require("node:fs");
 
 // serialization issues when round tripping bytes to "chars" to bytes
-const hackStrToBytes = new Map();
+// keep the original bytes for the string
+// TODO: could maybe get away with a WeakRef here
+const $3e273184e3a72f2a$export$226a103a52ef3067 = new Map();
 
-class Token {
-  constructor(str) {
-    this.str = str;
-  }
 
-  toString() {
-    return this.str;
-  }
+class $82e5f4275773712f$export$50792b0e93539fde {
+    constructor(str){
+        this.str = str;
+    }
+    toString() {
+        return this.str;
+    }
+}
+class $82e5f4275773712f$export$6ee0ae27af45b853 extends $82e5f4275773712f$export$50792b0e93539fde {
+}
+class $82e5f4275773712f$export$f25f153afe0ce4cc extends $82e5f4275773712f$export$50792b0e93539fde {
+    constructor(strBytes){
+        const buffer = Buffer.from(strBytes);
+        const str = buffer.toString("utf8");
+        (0, $3e273184e3a72f2a$export$226a103a52ef3067).set(str, strBytes);
+        super(str);
+        this.buffer = buffer;
+    }
+    toString() {
+        return JSON.stringify(this.str);
+    }
+}
+class $82e5f4275773712f$export$5edada7a246e2325 extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `[`;
+    }
+}
+class $82e5f4275773712f$export$cde8c14ea0efb6bf extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `]`;
+    }
+}
+class $82e5f4275773712f$export$c232086534285ef extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `{`;
+    }
+}
+class $82e5f4275773712f$export$c5248a0f555b2c55 extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `}`;
+    }
+}
+class $82e5f4275773712f$export$b4cd9db38d761c5c extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `, `;
+    }
+}
+class $82e5f4275773712f$export$7be493d1692ce0d3 extends $82e5f4275773712f$export$50792b0e93539fde {
+    toString() {
+        return `: `;
+    }
 }
 
-class IntToken extends Token {}
 
-class StrToken extends Token {
-  constructor(strBytes) {
-    const buffer = Buffer.from(strBytes);
-    const str = buffer.toString("utf8");
-    hackStrToBytes.set(str, strBytes);
-    super(str);
-    this.buffer = buffer;
-  }
-  toString() {
-    return JSON.stringify(this.str);
-  }
+class $66158fbd6a0ff2e9$export$b55edb69cfa7ac57 {
+    constructor(tokens = [], openDelims = []){
+        this.tokens = tokens;
+        this.openDelims = openDelims;
+        this.openDelims = openDelims ?? [];
+        this.tokens = tokens ?? [];
+    }
+    end() {
+        const top = this.openDelims.at(-1);
+        if (top instanceof (0, $82e5f4275773712f$export$5edada7a246e2325)) return this.add(new (0, $82e5f4275773712f$export$cde8c14ea0efb6bf)());
+        if (top instanceof (0, $82e5f4275773712f$export$c232086534285ef)) return this.add(new (0, $82e5f4275773712f$export$c5248a0f555b2c55)());
+        throw new Error("unexpected end");
+    }
+    bailStr() {
+        if (!this.openDelims.length) return this.toString();
+        return this.end().bailStr();
+    }
+    add(t) {
+        let nextDelims = this.openDelims;
+        if (t instanceof (0, $82e5f4275773712f$export$5edada7a246e2325)) nextDelims = nextDelims.concat(t);
+        else if (t instanceof (0, $82e5f4275773712f$export$c232086534285ef)) nextDelims = nextDelims.concat(t);
+        else if (t instanceof (0, $82e5f4275773712f$export$cde8c14ea0efb6bf)) {
+            const top = nextDelims.at(-1);
+            if (!(top instanceof (0, $82e5f4275773712f$export$5edada7a246e2325))) throw new Error("unmatched close array token");
+            nextDelims = [
+                ...nextDelims
+            ];
+            nextDelims.pop();
+        } else if (t instanceof (0, $82e5f4275773712f$export$c5248a0f555b2c55)) {
+            const top = nextDelims.at(-1);
+            if (!(top instanceof (0, $82e5f4275773712f$export$c232086534285ef))) throw new Error("unmatched close dict token");
+            nextDelims = [
+                ...nextDelims
+            ];
+            nextDelims.pop();
+        }
+        const needsArrSep = this.openDelims.at(-1) instanceof (0, $82e5f4275773712f$export$5edada7a246e2325) && !(t instanceof (0, $82e5f4275773712f$export$cde8c14ea0efb6bf)) && !(this.tokens.at(-1) instanceof (0, $82e5f4275773712f$export$5edada7a246e2325));
+        const needsKvSep = this.openDelims.at(-1) instanceof (0, $82e5f4275773712f$export$c232086534285ef) && this.tokens.at(-1) instanceof (0, $82e5f4275773712f$export$f25f153afe0ce4cc) && !(this.tokens.at(-2) instanceof (0, $82e5f4275773712f$export$7be493d1692ce0d3));
+        const needsDictSep = !needsKvSep && this.openDelims.at(-1) instanceof (0, $82e5f4275773712f$export$c232086534285ef) && !(t instanceof (0, $82e5f4275773712f$export$c5248a0f555b2c55)) && !(this.tokens.at(-1) instanceof (0, $82e5f4275773712f$export$c232086534285ef));
+        if (needsArrSep && needsDictSep) throw new Error("cannot need both");
+        if (needsKvSep && (needsDictSep || needsArrSep)) throw new Error("cannot need kv and dict/arr sep");
+        const nextTokens = needsArrSep || needsDictSep ? this.tokens.concat(new (0, $82e5f4275773712f$export$b4cd9db38d761c5c)()) : needsKvSep ? this.tokens.concat(new (0, $82e5f4275773712f$export$7be493d1692ce0d3)()) : this.tokens;
+        return new $66158fbd6a0ff2e9$export$b55edb69cfa7ac57(nextTokens.concat(t), nextDelims);
+    }
+    toString() {
+        const raw = this.tokens.join("");
+        const parsed = JSON.parse(raw);
+        const str = JSON.stringify(parsed);
+        return str;
+    }
 }
 
-class OpenArrayToken extends Token {
-  toString() {
-    return `[`;
-  }
+
+
+const $8bc3a143ba90e228$export$cea7f32f77c01158 = (ch)=>ch.charCodeAt(0);
+const $8bc3a143ba90e228$export$9bb611d729802a56 = $8bc3a143ba90e228$export$cea7f32f77c01158("i");
+const $8bc3a143ba90e228$export$a9c23c6ac3fc3eca = $8bc3a143ba90e228$export$cea7f32f77c01158("e");
+const $8bc3a143ba90e228$export$96c3628b3b9d2079 = $8bc3a143ba90e228$export$cea7f32f77c01158(":");
+const $8bc3a143ba90e228$export$1658304bacb54f82 = $8bc3a143ba90e228$export$cea7f32f77c01158("-");
+const $8bc3a143ba90e228$export$561f80bd3c078e48 = $8bc3a143ba90e228$export$cea7f32f77c01158("0");
+const $8bc3a143ba90e228$export$91bc1ec88fa68c13 = $8bc3a143ba90e228$export$cea7f32f77c01158("9");
+const $8bc3a143ba90e228$export$61196ced6d74a310 = $8bc3a143ba90e228$export$cea7f32f77c01158("l");
+const $8bc3a143ba90e228$export$96f57966bedc81b4 = $8bc3a143ba90e228$export$cea7f32f77c01158("d");
+
+
+const $e4e5653eb30567a4$var$intFromByte = (b)=>Number.parseInt(String.fromCharCode(b), 10);
+function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new (0, $66158fbd6a0ff2e9$export$b55edb69cfa7ac57)()) {
+    if (idx > bytes.length) {
+        console.error(`>>> ERROR: idx ${idx} > ${bytes.length}`);
+        return tokens.bailStr(); // lol - not handling bytes correctly in some sample files?
+    }
+    if (idx === bytes.length) return tokens;
+    if (bytes[idx] === (0, $8bc3a143ba90e228$export$96f57966bedc81b4)) return $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx + 1, tokens.add(new (0, $82e5f4275773712f$export$c232086534285ef)()));
+    if (bytes[idx] === (0, $8bc3a143ba90e228$export$61196ced6d74a310)) return $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx + 1, tokens.add(new (0, $82e5f4275773712f$export$5edada7a246e2325)()));
+    if (bytes[idx] === (0, $8bc3a143ba90e228$export$a9c23c6ac3fc3eca)) return $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx + 1, tokens.end());
+    if (!isNaN($e4e5653eb30567a4$var$intFromByte(bytes[idx]))) {
+        let next = idx;
+        const sizeBytes = [
+            bytes[idx]
+        ];
+        while(!isNaN($e4e5653eb30567a4$var$intFromByte(bytes[++next])))sizeBytes.push(bytes[next]);
+        // // ????
+        // if (!bytes[next] === COLON) {
+        //   throw new Error('expected :');
+        // }
+        if (bytes[next] !== (0, $8bc3a143ba90e228$export$96c3628b3b9d2079)) throw new Error("expected :");
+        ++next;
+        const sizeStr = Buffer.from(sizeBytes).toString("utf8");
+        const sizeNum = Number.parseInt(sizeStr, 10);
+        const strBytes = [];
+        let ate = 0;
+        while(ate++ < sizeNum)strBytes.push(bytes[next++]);
+        return $e4e5653eb30567a4$export$a1124e132c740495(bytes, next, tokens.add(new (0, $82e5f4275773712f$export$f25f153afe0ce4cc)(strBytes)));
+    }
+    if (bytes[idx] === (0, $8bc3a143ba90e228$export$9bb611d729802a56)) {
+        let next = idx + 1;
+        const numBytes = [];
+        if (bytes[next] === (0, $8bc3a143ba90e228$export$1658304bacb54f82)) numBytes.push(bytes[next++]);
+        while(bytes[next] !== (0, $8bc3a143ba90e228$export$a9c23c6ac3fc3eca) && next < bytes.length){
+            const numB = bytes[next++];
+            if (numB < (0, $8bc3a143ba90e228$export$561f80bd3c078e48) || numB > (0, $8bc3a143ba90e228$export$91bc1ec88fa68c13)) throw new Error(`invalid integer byte ${numB}`);
+            numBytes.push(numB);
+        }
+        const numStr = Buffer.from(numBytes).toString("utf8");
+        ++next;
+        return $e4e5653eb30567a4$export$a1124e132c740495(bytes, next, tokens.add(new (0, $82e5f4275773712f$export$6ee0ae27af45b853)(numStr)));
+    }
+    throw new Error("Unknown token type");
 }
 
-class CloseArrayToken extends Token {
-  toString() {
-    return `]`;
-  }
+
+
+
+
+
+
+
+function $b18cbde4f374671f$export$a92a1eaeb06ea361(dict) {
+    const keys = Object.keys(dict).sort();
+    const bytes = [
+        (0, $8bc3a143ba90e228$export$cea7f32f77c01158)("d")
+    ];
+    for (const key of keys){
+        const keyStr = `${key.length}:${key}`;
+        bytes.push(Array.from(Buffer.from(keyStr, "utf8")));
+        const val = dict[key];
+        if (typeof val === "number") {
+            const intStr = `i${val}e`;
+            bytes.push(Array.from(Buffer.from(intStr, "utf8")));
+        } else if (typeof val === "string") {
+            const strBytes = (0, $3e273184e3a72f2a$export$226a103a52ef3067).get(val);
+            if (!strBytes) throw new Error(`no bytes for ${val}`);
+            const prefix = `${strBytes.length}:`;
+            bytes.push(Array.from(Buffer.from(prefix, "utf8")));
+            bytes.push(strBytes);
+        } else throw new Error(`unsupported val type for ${val}`);
+    }
+    bytes.push((0, $8bc3a143ba90e228$export$cea7f32f77c01158)("e"));
+    return Buffer.from(bytes.flat());
 }
 
-class OpenDictToken extends Token {
-  toString() {
-    return `{`;
-  }
+
+
+
+function $0a38c752b5042f46$export$a80b3bd66acc52ff(file) {
+    const contents = $jC3rJ$nodefs.readFileSync(file);
+    console.error(`>>> contents:\n${contents}`);
+    const decoded = (0, $e4e5653eb30567a4$export$a1124e132c740495)(contents);
+    console.error(`>>> decoded:\n${decoded}`);
+    const parsed = JSON.parse(decoded);
+    console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
+    const { announce: announce, info: info } = parsed;
+    const encodedInfo = (0, $b18cbde4f374671f$export$a92a1eaeb06ea361)(info);
+    console.error(`>>> encoded info:\n${encodedInfo}`);
+    console.error(`>>> round-trip info:\n${(0, $e4e5653eb30567a4$export$a1124e132c740495)(encodedInfo)}`);
+    const hasher = $jC3rJ$nodecrypto.createHash("sha1");
+    hasher.update(encodedInfo);
+    const sha1 = hasher.digest("hex");
+    const infoStr = [
+        [
+            "Tracker URL",
+            announce
+        ],
+        [
+            "Length",
+            info.length
+        ],
+        [
+            "Info Hash",
+            sha1
+        ]
+    ].map(([k, v])=>`${k}: ${v}`).join("\n");
+    return infoStr;
 }
 
-class CloseDictToken extends Token {
-  toString() {
-    return `}`;
-  }
+
+function $3f97e85369539468$export$f22da7240b7add18() {
+    const command = process.argv[2];
+    switch(command){
+        case "decode":
+            {
+                const bencodedValue = process.argv[3];
+                const bytes = Buffer.from(bencodedValue, "utf8");
+                console.log(String((0, $e4e5653eb30567a4$export$a1124e132c740495)(bytes)));
+                break;
+            }
+        case "info":
+            {
+                const file = process.argv[3];
+                console.log((0, $0a38c752b5042f46$export$a80b3bd66acc52ff)(file));
+                break;
+            }
+        default:
+            throw new Error("Not implemented");
+    }
 }
 
-class SeparatorToken extends Token {
-  toString() {
-    return `, `;
-  }
-}
 
-class KvSeparatorToken extends Token {
-  toString() {
-    return `: `;
-  }
-}
 
-class TokenStream {
-  constructor(tokens, delims) {
-    this.openDelims = delims ?? [];
-    this.tokens = tokens ?? [];
-  }
 
-  end() {
-    const top = this.openDelims.at(-1);
-    if (top instanceof OpenArrayToken) {
-      return this.add(new CloseArrayToken());
-    }
-    if (top instanceof OpenDictToken) {
-      return this.add(new CloseDictToken());
-    }
-    throw new Error("unexpected end");
-  }
+(0, $3f97e85369539468$export$f22da7240b7add18)();
 
-  bailStr() {
-    if (!this.openDelims.length) {
-      return this.toString();
-    }
-    return this.end().bailStr();
-  }
 
-  add(t) {
-    let nextDelims = this.openDelims;
-    if (t instanceof OpenArrayToken) {
-      nextDelims = nextDelims.concat(t);
-    } else if (t instanceof OpenDictToken) {
-      nextDelims = nextDelims.concat(t);
-    } else if (t instanceof CloseArrayToken) {
-      const top = nextDelims.at(-1);
-      if (!(top instanceof OpenArrayToken)) {
-        throw new Error("unmatched close array token");
-      }
-      nextDelims = [...nextDelims];
-      nextDelims.pop();
-    } else if (t instanceof CloseDictToken) {
-      const top = nextDelims.at(-1);
-      if (!(top instanceof OpenDictToken)) {
-        throw new Error("unmatched close dict token");
-      }
-      nextDelims = [...nextDelims];
-      nextDelims.pop();
-    }
-
-    const needsArrSep =
-      this.openDelims.at(-1) instanceof OpenArrayToken &&
-      !(t instanceof CloseArrayToken) &&
-      !(this.tokens.at(-1) instanceof OpenArrayToken);
-
-    const needsKvSep =
-      this.openDelims.at(-1) instanceof OpenDictToken &&
-      this.tokens.at(-1) instanceof StrToken &&
-      !(this.tokens.at(-2) instanceof KvSeparatorToken);
-
-    const needsDictSep =
-      !needsKvSep &&
-      this.openDelims.at(-1) instanceof OpenDictToken &&
-      !(t instanceof CloseDictToken) &&
-      !(this.tokens.at(-1) instanceof OpenDictToken);
-
-    if (needsArrSep && needsDictSep) {
-      throw new Error("cannot need both");
-    }
-    if (needsKvSep && (needsDictSep || needsArrSep)) {
-      throw new Error("cannot need kv and dict/arr sep");
-    }
-
-    const nextTokens =
-      needsArrSep || needsDictSep
-        ? this.tokens.concat(new SeparatorToken())
-        : needsKvSep
-        ? this.tokens.concat(new KvSeparatorToken())
-        : this.tokens;
-
-    return new TokenStream(nextTokens.concat(t), nextDelims);
-  }
-
-  toString() {
-    const raw = this.tokens.join("");
-    const parsed = JSON.parse(raw);
-    const str = JSON.stringify(parsed);
-    return str;
-  }
-}
-
-const asByte = (ch) => ch.charCodeAt(0);
-
-const I = asByte("i");
-const E = asByte("e");
-const COLON = asByte(":");
-const HYPHEN = asByte("-");
-const $0 = asByte("0");
-const $9 = asByte("9");
-const L = asByte("l");
-const D = asByte("d");
-
-const intFromByte = (b) => Number.parseInt(String.fromCharCode(b), 10);
-
-// Examples:
-// - decodeBencode("5:hello") -> "hello"
-// - decodeBencode("10:hello12345") -> "hello12345"
-// - l5:helloi52ee -> ["hello", 52]
-function decodeBencode(bytes, idx = 0, tokens = new TokenStream()) {
-  if (idx > bytes.length) {
-    console.error(`>>> ERROR: idx ${idx} > ${bytes.length}`);
-    return tokens.bailStr(); // lol - not handling bytes correctly in some sample files?
-  }
-  if (idx === bytes.length) {
-    return tokens;
-  }
-  if (bytes[idx] === D) {
-    return decodeBencode(bytes, idx + 1, tokens.add(new OpenDictToken()));
-  }
-  if (bytes[idx] === L) {
-    return decodeBencode(bytes, idx + 1, tokens.add(new OpenArrayToken()));
-  }
-  if (bytes[idx] === E) {
-    return decodeBencode(bytes, idx + 1, tokens.end());
-  }
-  if (!isNaN(intFromByte(bytes[idx]))) {
-    let next = idx;
-    const sizeBytes = [bytes[idx]];
-    while (!isNaN(intFromByte(bytes[++next]))) {
-      sizeBytes.push(bytes[next]);
-    }
-    if (!bytes[next] === COLON) {
-      throw new Error("expected :");
-    }
-    ++next;
-    const sizeStr = Buffer.from(sizeBytes).toString("utf8");
-    const sizeNum = Number.parseInt(sizeStr, 10);
-    const strBytes = [];
-    let ate = 0;
-    while (ate++ < sizeNum) {
-      strBytes.push(bytes[next++]);
-    }
-    return decodeBencode(bytes, next, tokens.add(new StrToken(strBytes)));
-  }
-  if (bytes[idx] === I) {
-    let next = idx + 1;
-    const numBytes = [];
-    if (bytes[next] === HYPHEN) {
-      numBytes.push(bytes[next++]);
-    }
-    while (bytes[next] !== E && next < bytes.length) {
-      const numB = bytes[next++];
-      if (numB < $0 || numB > $9) {
-        throw new Error(`invalid integer byte ${numB}`);
-      }
-      numBytes.push(numB);
-    }
-    const numStr = Buffer.from(numBytes).toString("utf8");
-    ++next;
-    return decodeBencode(bytes, next, tokens.add(new IntToken(numStr)));
-  }
-  throw new Error("Unknown token type");
-}
-
-function info(file) {
-  const contents = fs.readFileSync(file);
-  console.error(`>>> contents:\n${contents}`);
-  const decoded = decodeBencode(contents);
-  console.error(`>>> decoded:\n${decoded}`);
-  const parsed = JSON.parse(decoded);
-  console.error(`>>> parsed:\n${JSON.stringify(parsed, null, 2)}`);
-  const { announce, info } = parsed;
-  const encodedInfo = encodeDict(info);
-  console.error(`>>> encoded info:\n${encodedInfo}`);
-  console.error(`>>> round-trip info:\n${decodeBencode(encodedInfo)}`);
-  const hasher = crypto.createHash("sha1");
-  hasher.update(encodedInfo);
-  const sha1 = hasher.digest("hex");
-  const infoStr = [
-    ["Tracker URL", announce],
-    ["Length", info.length],
-    ["Info Hash", sha1],
-  ]
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\n");
-  return infoStr;
-}
-
-function encodeDict(dict) {
-  const keys = Object.keys(dict).sort();
-  const bytes = [asByte("d")];
-  for (const key of keys) {
-    const keyStr = `${key.length}:${key}`;
-    bytes.push(Array.from(Buffer.from(keyStr, "utf8")));
-    const val = dict[key];
-    if (typeof val === "number") {
-      const intStr = `i${val}e`;
-      bytes.push(Array.from(Buffer.from(intStr, "utf8")));
-    } else if (typeof val === "string") {
-      const strBytes = hackStrToBytes.get(val);
-      if (!strBytes) {
-        throw new Error(`no bytes for ${val}`);
-      }
-      const prefix = `${strBytes.length}:`;
-      bytes.push(Array.from(Buffer.from(prefix, "utf8")));
-      bytes.push(strBytes);
-    } else {
-      throw new Error(`unsupported val type for ${val}`);
-    }
-  }
-  bytes.push(asByte("e"));
-  return Buffer.from(bytes.flat());
-}
-
-function main() {
-  const command = process.argv[2];
-
-  switch (command) {
-    case "decode": {
-      const bencodedValue = process.argv[3];
-      const bytes = Buffer.from(bencodedValue, "utf8");
-      console.log(String(decodeBencode(bytes)));
-      break;
-    }
-    case "info": {
-      const file = process.argv[3];
-      console.log(info(file));
-      break;
-    }
-    default:
-      throw new Error("Not implemented");
-  }
-}
-
-main();
+//# sourceMappingURL=main.js.map
