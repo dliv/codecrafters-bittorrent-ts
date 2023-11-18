@@ -1,11 +1,11 @@
-const crypto = require('node:crypto');
-const fs = require('node:fs');
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 
 import { decodeBencode } from '../decode';
 import { hackStrToBytes } from '../hack';
 import { encodeDict } from './encode-dict';
 
-export function info(file: string) {
+export const getInfo = (file: string) => {
   const contents = fs.readFileSync(file);
   const decoded = decodeBencode(contents);
   const parsed = JSON.parse(decoded);
@@ -14,6 +14,9 @@ export function info(file: string) {
   const hasher = crypto.createHash('sha1');
   hasher.update(encodedInfo);
   const sha1 = hasher.digest('hex');
+  const hasherRaw = crypto.createHash('sha1');
+  hasherRaw.update(encodedInfo);
+  const sha1Raw = hasherRaw.digest();
 
   const piecesConcat = hackStrToBytes.get(info.pieces);
   const pieceHashes: string[] = [];
@@ -22,6 +25,17 @@ export function info(file: string) {
     pieceHashes.push(Buffer.from(p).toString('hex'));
   }
 
+  return {
+    announce,
+    info,
+    sha1,
+    sha1Raw,
+    pieceHashes,
+  };
+};
+
+export function infoCommand(file: string) {
+  const { announce, info, sha1, pieceHashes } = getInfo(file);
   const infoStr = [
     ['Tracker URL', announce],
     ['Length', info.length],

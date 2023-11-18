@@ -1,0 +1,1 @@
+export { peersCommand } from './peers';

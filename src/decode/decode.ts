@@ -2,7 +2,13 @@ import { TokenStream } from './token-stream';
 import { OpenDictToken, OpenArrayToken, StrToken, IntToken } from './tokens';
 import { D, L, E, COLON, I, HYPHEN, $0, $9 } from './utils';
 
-const intFromByte = (b) => Number.parseInt(String.fromCharCode(b), 10);
+const intFromByte = (b: number) => Number.parseInt(String.fromCharCode(b), 10);
+
+export function decodeCommand(str: string): string {
+  const bytes = Buffer.from(str, 'utf8');
+  const decoded = String(decodeBencode(bytes));
+  return decoded;
+}
 
 // Examples:
 // - decodeBencode("5:hello") -> "hello"
@@ -65,5 +71,5 @@ export function decodeBencode(bytes, idx = 0, tokens = new TokenStream()) {
     ++next;
     return decodeBencode(bytes, next, tokens.add(new IntToken(numStr)));
   }
-  throw new Error('Unknown token type');
+  throw new Error(`Unknown token type at index ${idx}`);
 }

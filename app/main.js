@@ -1,6 +1,11 @@
 var $jC3rJ$nodecrypto = require("node:crypto");
 var $jC3rJ$nodefs = require("node:fs");
+var $jC3rJ$nodehttp = require("node:http");
 
+
+function $parcel$interopDefault(a) {
+  return a && a.__esModule ? a.default : a;
+}
 // serialization issues when round tripping bytes to "chars" to bytes
 // keep the original bytes for the string
 // TODO: could maybe get away with a WeakRef here
@@ -127,6 +132,11 @@ const $8bc3a143ba90e228$export$96f57966bedc81b4 = $8bc3a143ba90e228$export$cea7f
 
 
 const $e4e5653eb30567a4$var$intFromByte = (b)=>Number.parseInt(String.fromCharCode(b), 10);
+function $e4e5653eb30567a4$export$da4f2b68efa4c4b(str) {
+    const bytes = Buffer.from(str, "utf8");
+    const decoded = String($e4e5653eb30567a4$export$a1124e132c740495(bytes));
+    return decoded;
+}
 function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new (0, $66158fbd6a0ff2e9$export$b55edb69cfa7ac57)()) {
     if (idx > bytes.length) {
         console.error(`>>> ERROR: idx ${idx} > ${bytes.length}`);
@@ -168,8 +178,10 @@ function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new 
         ++next;
         return $e4e5653eb30567a4$export$a1124e132c740495(bytes, next, tokens.add(new (0, $82e5f4275773712f$export$6ee0ae27af45b853)(numStr)));
     }
-    throw new Error("Unknown token type");
+    throw new Error(`Unknown token type at index ${idx}`);
 }
+
+
 
 
 
@@ -204,23 +216,34 @@ function $b18cbde4f374671f$export$a92a1eaeb06ea361(dict) {
 }
 
 
-
-
-function $0a38c752b5042f46$export$a80b3bd66acc52ff(file) {
-    const contents = $jC3rJ$nodefs.readFileSync(file);
+const $0a38c752b5042f46$export$c73dcf559dad2f44 = (file)=>{
+    const contents = (0, ($parcel$interopDefault($jC3rJ$nodefs))).readFileSync(file);
     const decoded = (0, $e4e5653eb30567a4$export$a1124e132c740495)(contents);
     const parsed = JSON.parse(decoded);
     const { announce: announce, info: info } = parsed;
     const encodedInfo = (0, $b18cbde4f374671f$export$a92a1eaeb06ea361)(info);
-    const hasher = $jC3rJ$nodecrypto.createHash("sha1");
+    const hasher = (0, ($parcel$interopDefault($jC3rJ$nodecrypto))).createHash("sha1");
     hasher.update(encodedInfo);
     const sha1 = hasher.digest("hex");
+    const hasherRaw = (0, ($parcel$interopDefault($jC3rJ$nodecrypto))).createHash("sha1");
+    hasherRaw.update(encodedInfo);
+    const sha1Raw = hasherRaw.digest();
     const piecesConcat = (0, $3e273184e3a72f2a$export$226a103a52ef3067).get(info.pieces);
     const pieceHashes = [];
     for(let i = 0; i < piecesConcat.length; i += 20){
         const p = piecesConcat.slice(i, i + 20);
         pieceHashes.push(Buffer.from(p).toString("hex"));
     }
+    return {
+        announce: announce,
+        info: info,
+        sha1: sha1,
+        sha1Raw: sha1Raw,
+        pieceHashes: pieceHashes
+    };
+};
+function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
+    const { announce: announce, info: info, sha1: sha1, pieceHashes: pieceHashes } = $0a38c752b5042f46$export$c73dcf559dad2f44(file);
     const infoStr = [
         [
             "Tracker URL",
@@ -248,20 +271,125 @@ function $0a38c752b5042f46$export$a80b3bd66acc52ff(file) {
 }
 
 
-function $3f97e85369539468$export$f22da7240b7add18() {
+
+
+
+
+
+
+const $1f1932f95910f014$var$peerId = "a79a7e603a3d4357b52f";
+const $1f1932f95910f014$var$PORT = "6881";
+async function $1f1932f95910f014$export$f05eafe0156b3b47(file) {
+    const peersResp = await $1f1932f95910f014$export$a8157895bd9c53da(file);
+    return peersResp.peers.join("\n");
+}
+async function $1f1932f95910f014$export$a8157895bd9c53da(file) {
+    const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file);
+    const url = $1f1932f95910f014$var$getPeersUrl(info);
+    const respStr = await $1f1932f95910f014$var$httpGetBuffer(url);
+    const decoded = $1f1932f95910f014$export$6563632edab52a01(respStr);
+    return decoded;
+}
+function $1f1932f95910f014$export$6563632edab52a01(resp) {
+    const { interval: interval, peers: peers } = JSON.parse(String((0, $e4e5653eb30567a4$export$a1124e132c740495)(resp)));
+    const peersBytes = (0, $3e273184e3a72f2a$export$226a103a52ef3067).get(peers);
+    const peerStrs = [];
+    for(let i = 0; i < peersBytes.length; i += 6){
+        const ip = peersBytes.slice(i, i + 4).join(".");
+        const [p0, p1] = peersBytes.slice(i + 4, i + 6);
+        const port = p0 << 8 | p1;
+        const str = [
+            ip,
+            port
+        ].join(":");
+        peerStrs.push(str);
+    }
+    return {
+        interval: interval,
+        peers: peerStrs
+    };
+}
+function $1f1932f95910f014$var$getPeersUrl(info) {
+    const infoHashBuf = Buffer.from(info.sha1, "hex");
+    if (infoHashBuf.length !== 20) throw new Error("infoHashRaw.length !== 20");
+    const params = new URLSearchParams();
+    params.append("peer_id", $1f1932f95910f014$var$peerId);
+    params.append("port", $1f1932f95910f014$var$PORT);
+    params.append("uploaded", "0");
+    params.append("downloaded", "0");
+    params.append("left", info.info.length.toString());
+    params.append("compact", "1");
+    let url = `${info.announce}?${params.toString()}`;
+    url += `&info_hash=${$1f1932f95910f014$export$3449a3b321ef3023(info.sha1)}`;
+    return url;
+}
+function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
+    const encoded = [];
+    for(let i = 0; i < hexStr.length; i += 2){
+        const pair = hexStr.slice(i, i + 2);
+        let e = "";
+        switch(pair.toLowerCase()){
+            case "4c":
+                e = "L";
+                break;
+            case "54":
+                e = "T";
+                break;
+            case "68":
+                e = "h";
+                break;
+            case "71":
+                e = "q";
+                break;
+            default:
+                e = `%${pair}`;
+        }
+        encoded.push(e);
+    }
+    return encoded.join("");
+}
+function $1f1932f95910f014$var$httpGetBuffer(url) {
+    return new Promise((resolve, reject)=>{
+        (0, ($parcel$interopDefault($jC3rJ$nodehttp))).get(url, (res)=>{
+            if (res.statusCode < 200 || res.statusCode >= 300) return reject(new Error("StatusCode=" + res.statusCode));
+            const chunks = [];
+            // Collect chunks of data
+            res.on("data", (chunk)=>{
+                chunks.push(chunk);
+            });
+            // The whole response has been received. Combine the chunks and resolve.
+            res.on("end", ()=>{
+                const buffer = Buffer.concat(chunks);
+                resolve(buffer);
+            });
+        }).on("error", (err)=>{
+            reject(err);
+        });
+    });
+}
+
+
+
+
+async function $3f97e85369539468$export$f22da7240b7add18() {
     const command = process.argv[2];
     switch(command){
         case "decode":
             {
                 const bencodedValue = process.argv[3];
-                const bytes = Buffer.from(bencodedValue, "utf8");
-                console.log(String((0, $e4e5653eb30567a4$export$a1124e132c740495)(bytes)));
+                console.log((0, $e4e5653eb30567a4$export$da4f2b68efa4c4b)(bencodedValue));
                 break;
             }
         case "info":
             {
                 const file = process.argv[3];
-                console.log((0, $0a38c752b5042f46$export$a80b3bd66acc52ff)(file));
+                console.log((0, $0a38c752b5042f46$export$af06c3af5bd98cb4)(file));
+                break;
+            }
+        case "peers":
+            {
+                const file = process.argv[3];
+                console.log(await (0, $1f1932f95910f014$export$f05eafe0156b3b47)(file));
                 break;
             }
         default:
@@ -272,7 +400,10 @@ function $3f97e85369539468$export$f22da7240b7add18() {
 
 
 
-(0, $3f97e85369539468$export$f22da7240b7add18)();
+(0, $3f97e85369539468$export$f22da7240b7add18)().catch((e)=>{
+    console.error(e);
+    process.exit(1);
+});
 
 
 //# sourceMappingURL=main.js.map

@@ -1,19 +1,24 @@
-import { decodeBencode } from '../decode/decode';
-import { info } from '../info/info';
+import { decodeCommand } from '../decode';
+import { infoCommand } from '../info';
+import { peersCommand } from '../peers';
 
-export function main() {
+export async function main() {
   const command = process.argv[2];
 
   switch (command) {
     case 'decode': {
       const bencodedValue = process.argv[3];
-      const bytes = Buffer.from(bencodedValue, 'utf8');
-      console.log(String(decodeBencode(bytes)));
+      console.log(decodeCommand(bencodedValue));
       break;
     }
     case 'info': {
       const file = process.argv[3];
-      console.log(info(file));
+      console.log(infoCommand(file));
+      break;
+    }
+    case 'peers': {
+      const file = process.argv[3];
+      console.log(await peersCommand(file));
       break;
     }
     default:

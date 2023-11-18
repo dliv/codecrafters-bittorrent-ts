@@ -1,8 +1,8 @@
-import { info } from './info';
+import { infoCommand } from './info';
 
 describe('info', () => {
   it('works', () => {
-    expect(info('sample.torrent')).toEqual(
+    expect(infoCommand('sample.torrent')).toEqual(
       `\
 Tracker URL: http://bittorrent-test-tracker.codecrafters.io/announce
 Length: 92063

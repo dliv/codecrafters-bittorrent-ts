@@ -1,2 +1,2 @@
-export { decodeBencode } from './decode';
+export { decodeBencode, decodeCommand } from './decode';
 export * from './utils';
