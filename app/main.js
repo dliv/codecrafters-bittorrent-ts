@@ -279,14 +279,15 @@ function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
 
 
 async function $2ff16d2e43a79b67$export$e90fdf5f0bf87fd(file, peer) {
-    const resp = await $2ff16d2e43a79b67$export$92a128e20f9ed1e(file, peer);
-    return `Peer ID: ${resp.toString("hex")}`;
+    const peerId = await $2ff16d2e43a79b67$export$b7b2d4e5c0769ed(file, peer);
+    return `Peer ID: ${peerId}`;
 }
-async function $2ff16d2e43a79b67$export$92a128e20f9ed1e(file, peer) {
+async function $2ff16d2e43a79b67$export$b7b2d4e5c0769ed(file, peer) {
     const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file);
     const handshake = $2ff16d2e43a79b67$var$getHandshake(info);
     const handshakeResp = await $2ff16d2e43a79b67$var$getHandshakeResponse(peer, handshake);
-    return handshakeResp;
+    const peerId = handshakeResp.subarray(handshakeResp.length - 20);
+    return peerId.toString("hex");
 }
 function $2ff16d2e43a79b67$var$getHandshake(info) {
     const length = Buffer.from([

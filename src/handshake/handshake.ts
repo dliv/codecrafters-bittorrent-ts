@@ -7,15 +7,19 @@ export async function handshakeCommand(
   file: string,
   peer: string,
 ): Promise<string> {
-  const resp = await doHandshake(file, peer);
-  return `Peer ID: ${resp.toString('hex')}`;
+  const peerId = await doHandshakeAndGetPeer(file, peer);
+  return `Peer ID: ${peerId}`;
 }
 
-export async function doHandshake(file: string, peer: string): Promise<Buffer> {
+export async function doHandshakeAndGetPeer(
+  file: string,
+  peer: string,
+): Promise<string> {
   const info = getInfo(file);
   const handshake = getHandshake(info);
   const handshakeResp = await getHandshakeResponse(peer, handshake);
-  return handshakeResp;
+  const peerId = handshakeResp.subarray(handshakeResp.length - 20);
+  return peerId.toString('hex');
 }
 
 function getHandshake(info): Buffer {
