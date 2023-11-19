@@ -1,17 +1,19 @@
+var $jC3rJ$nodefspromises = require("node:fs/promises");
 var $jC3rJ$nodeassert = require("node:assert");
-var $jC3rJ$nodenet = require("node:net");
 var $jC3rJ$nodecrypto = require("node:crypto");
 var $jC3rJ$nodefs = require("node:fs");
 var $jC3rJ$nodehttp = require("node:http");
 var $jC3rJ$nodeurl = require("node:url");
+var $jC3rJ$nodenet = require("node:net");
 
 
 function $parcel$interopDefault(a) {
   return a && a.__esModule ? a.default : a;
 }
-// serialization issues when round tripping bytes to "chars" to bytes
-// keep the original bytes for the string
-// TODO: could maybe get away with a WeakRef here
+// my original decoder assumed we wouldn't need the original bytes again
+// but we do and i'm too lazy to touch the decoder again
+// so this hack allows looking up the original bytes
+// (could maybe use a WeakRef but really the decoder should just be rewritten)
 const $3e273184e3a72f2a$export$226a103a52ef3067 = new Map();
 
 
@@ -226,6 +228,13 @@ const $0a38c752b5042f46$export$c73dcf559dad2f44 = (file)=>{
     const decoded = (0, $e4e5653eb30567a4$export$a1124e132c740495)(contents);
     const parsed = JSON.parse(decoded);
     const { announce: announce, info: info } = parsed;
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(typeof announce === "string", "announce is not a string");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(typeof info === "object", "info is not an object");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(typeof info.length === "number", "info.length is not a number");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(typeof info["piece length"] === "number", 'info["piece length"] is not a number');
+    // this should actually be a Buffer or number[] but my original decoder loses some info
+    // (i.e. is shit) so we need `hackStrToBytes` to look up the original bytes
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(typeof info.pieces === "string", "info.pieces is not a string");
     const encodedInfo = (0, $b18cbde4f374671f$export$a92a1eaeb06ea361)(info);
     const hasher = (0, ($parcel$interopDefault($jC3rJ$nodecrypto))).createHash("sha1");
     hasher.update(encodedInfo);
@@ -239,13 +248,14 @@ const $0a38c752b5042f46$export$c73dcf559dad2f44 = (file)=>{
         const p = piecesConcat.slice(i, i + 20);
         pieceHashes.push(Buffer.from(p).toString("hex"));
     }
-    return {
+    const extendedInfo = {
         announce: announce,
         info: info,
         sha1: sha1,
         sha1Raw: sha1Raw,
         pieceHashes: pieceHashes
     };
+    return extendedInfo;
 };
 function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
     const { announce: announce, info: info, sha1: sha1, pieceHashes: pieceHashes } = $0a38c752b5042f46$export$c73dcf559dad2f44(file);
@@ -274,81 +284,6 @@ function $0a38c752b5042f46$export$af06c3af5bd98cb4(file) {
     ].map(([k, v, delim = " "])=>`${k}:${delim}${v}`).join("\n");
     return infoStr;
 }
-
-
-
-
-async function $2ff16d2e43a79b67$export$e90fdf5f0bf87fd(file, peer) {
-    const peerId = await $2ff16d2e43a79b67$export$b7b2d4e5c0769ed(file, peer);
-    return `Peer ID: ${peerId}`;
-}
-async function $2ff16d2e43a79b67$export$b7b2d4e5c0769ed(file, peer) {
-    const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file);
-    const handshake = $2ff16d2e43a79b67$var$getHandshake(info);
-    const handshakeResp = await $2ff16d2e43a79b67$var$getHandshakeResponse(peer, handshake);
-    const peerId = handshakeResp.subarray(handshakeResp.length - 20);
-    return peerId.toString("hex");
-}
-function $2ff16d2e43a79b67$var$getHandshake(info) {
-    const length = Buffer.from([
-        19
-    ]);
-    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(length.length === 1, "length.length !== 1");
-    const protocol = Buffer.from("BitTorrent protocol");
-    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(protocol.length === 19, "protocol.length !== 19");
-    const reserved = Buffer.from([
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-    ]);
-    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(reserved.length === 8, "reserved.length !== 8");
-    const infoHash = Buffer.from(info.sha1, "hex");
-    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(infoHash.length === 20, "infoHash.length !== 20");
-    const peerId = Buffer.from("00112233445566778899");
-    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(peerId.length === 20, "peerId.length !== 20");
-    const handshake = Buffer.concat([
-        length,
-        protocol,
-        reserved,
-        infoHash,
-        peerId
-    ]);
-    console.error(`sent handshake.length ${handshake.length}, as hex:\t\n${handshake.toString("hex")}`);
-    return handshake;
-}
-async function $2ff16d2e43a79b67$var$getHandshakeResponse(peer, handshake) {
-    const [host, portStr] = peer.split(":");
-    const port = Number.parseInt(portStr, 10);
-    if (!(Number.isSafeInteger(port) && port > 0)) throw new Error(`bad port: ${portStr}`);
-    return new Promise((resolve, reject)=>{
-        const client = new (0, ($parcel$interopDefault($jC3rJ$nodenet))).Socket();
-        client.connect(port, host, ()=>{
-            console.error("TCP connection established");
-            client.write(handshake);
-        });
-        client.on("data", (data)=>{
-            console.error("Received:", data);
-            // hopefully the whole msg fits in one data
-            resolve(data);
-            console.error(`got handshake.length ${data.length}, as hex:\t\n${data.toString("hex")}`);
-            client.end();
-        });
-        client.on("close", ()=>{
-            console.error("Connection closed");
-            reject(new Error(`closed before promise fulfilled`));
-        });
-        client.on("error", (err)=>{
-            console.error("Error:", err);
-            reject(err);
-        });
-    });
-}
-
 
 
 
@@ -403,8 +338,9 @@ function $1f1932f95910f014$export$6563632edab52a01(resp) {
     const peerStrs = [];
     for(let i = 0; i < peersBytes.length; i += 6){
         const ip = peersBytes.slice(i, i + 4).join(".");
-        const [p0, p1] = peersBytes.slice(i + 4, i + 6);
-        const port = p0 << 8 | p1;
+        // const [p0, p1] = peersBytes.slice(i + 4, i + 6);
+        // const port = (p0 << 8) | p1;
+        const port = Buffer.from(peersBytes).readUInt16BE(i + 4);
         const str = [
             ip,
             port
@@ -432,6 +368,10 @@ function $1f1932f95910f014$var$getPeersUrl(info) {
 }
 function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
     const encoded = [];
+    // this is not `encodeURIComponent`
+    // the info hash is hex where each pair represents a byte
+    // we could escape them all with `%` but the challenge comments say that's not efficient enough
+    // so map the pairs that match a safe ascii
     for(let i = 0; i < hexStr.length; i += 2){
         const pair = hexStr.slice(i, i + 2);
         let e = "";
@@ -455,6 +395,382 @@ function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
     }
     return encoded.join("");
 }
+
+
+
+
+
+function $38153ead2db24425$export$ba6075743c6fa6a5(data) {
+    // should validate the info hash
+    const peerId = data.subarray(data.length - 20);
+    return {
+        peerId: peerId,
+        peerIdHex: peerId.toString("hex"),
+        handshakeResp: data
+    };
+}
+function $38153ead2db24425$export$74f755347fc62200(info) {
+    const prefix = $38153ead2db24425$var$getHandshakePrefix();
+    // seems like this should be part of the prefix
+    // but the return handshake has a non-zero for one of these
+    const reserved = Buffer.from([
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ]);
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(reserved.length === 8, "reserved.length !== 8");
+    const infoHash = Buffer.from(info.sha1, "hex");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(infoHash.length === 20, "infoHash.length !== 20");
+    const peerId = Buffer.from("00112233445566778899");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(peerId.length === 20, "peerId.length !== 20");
+    const handshake = Buffer.concat([
+        prefix,
+        reserved,
+        infoHash,
+        peerId
+    ]);
+    return handshake;
+}
+function $38153ead2db24425$var$getHandshakePrefix() {
+    const length = Buffer.from([
+        19
+    ]);
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(length.length === 1, "length.length !== 1");
+    const protocol = Buffer.from("BitTorrent protocol");
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(protocol.length === 19, "protocol.length !== 19");
+    const prefix = Buffer.concat([
+        length,
+        protocol
+    ]);
+    return prefix;
+}
+function $38153ead2db24425$export$e25f39df76216b38(data) {
+    if (data.length < 68) return false;
+    const prefix = $38153ead2db24425$var$getHandshakePrefix();
+    for(let i = 0; i < prefix.length; i++){
+        if (data[i] !== prefix[i]) return false;
+    }
+    return true;
+}
+
+
+
+
+var $89331aaf2ca9d62f$export$5eb068567d1a68bc;
+(function(MessageId) {
+    MessageId[MessageId["Choke"] = 0] = "Choke";
+    MessageId[MessageId["Unchoke"] = 1] = "Unchoke";
+    MessageId[MessageId["Interested"] = 2] = "Interested";
+    MessageId[MessageId["NotInterested"] = 3] = "NotInterested";
+    MessageId[MessageId["Have"] = 4] = "Have";
+    MessageId[MessageId["Bitfield"] = 5] = "Bitfield";
+    MessageId[MessageId["Request"] = 6] = "Request";
+    MessageId[MessageId["Piece"] = 7] = "Piece";
+    MessageId[MessageId["Cancel"] = 8] = "Cancel";
+})($89331aaf2ca9d62f$export$5eb068567d1a68bc || ($89331aaf2ca9d62f$export$5eb068567d1a68bc = {}));
+class $89331aaf2ca9d62f$export$f69c19e57285b83a {
+    constructor(buffer){
+        this.raw = buffer;
+        this.msgLen = $89331aaf2ca9d62f$export$f69c19e57285b83a.getMessageLength(buffer);
+        this.id = $89331aaf2ca9d62f$export$f69c19e57285b83a.getMessageId(buffer);
+        this.payload = $89331aaf2ca9d62f$export$f69c19e57285b83a.getMessagePayload(buffer);
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))($89331aaf2ca9d62f$export$5eb068567d1a68bc[this.id], `bad id: ${this.id}`);
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.msgLen === this.payload.length + 1, `length ${this.msgLen} !== payload.length ${this.payload.length} + 1`);
+    }
+    isA(id) {
+        return this.id === id;
+    }
+    toString() {
+        return `Message(id: ${$89331aaf2ca9d62f$export$5eb068567d1a68bc[this.id]}, payload: ${this.msgLen - 1}b)`;
+    }
+    static isKeepAlive(data) {
+        return data.length === 4 && $89331aaf2ca9d62f$export$f69c19e57285b83a.getMessageLength(data) === 0;
+    }
+    static getDebugType(data) {
+        if ($89331aaf2ca9d62f$export$f69c19e57285b83a.isKeepAlive(data)) return "keep-alive";
+        const id = $89331aaf2ca9d62f$export$f69c19e57285b83a.getMessageId(data);
+        if ($89331aaf2ca9d62f$export$5eb068567d1a68bc[id]) return $89331aaf2ca9d62f$export$5eb068567d1a68bc[id];
+        if ((0, $38153ead2db24425$export$e25f39df76216b38)(data)) return "handshake";
+        return "";
+    }
+    static getMessageId(data) {
+        return data.readInt8(4);
+    }
+    static getMessageLength(data) {
+        return data.readInt32BE(0);
+    }
+    static getMessagePayload(data) {
+        return data.subarray(5);
+    }
+    static makeSendBuffer(id, payload) {
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))($89331aaf2ca9d62f$export$5eb068567d1a68bc[id], `bad id: ${id}`);
+        const payloadLen = payload?.length ?? 0;
+        const buffer = Buffer.alloc(5 + payloadLen);
+        buffer.writeUInt32BE(1 + payloadLen, 0);
+        buffer.writeUInt8(id, 4);
+        if (payloadLen) payload.copy(buffer, 5);
+        return buffer;
+    }
+}
+
+
+var $a1d9e98063dd4481$var$State;
+(function(State) {
+    State["Unconnected"] = "unconnected";
+    State["Connected"] = "connected";
+    State["Handshaked"] = "handshaked";
+    State["Downloading"] = "downloading";
+    State["Error"] = "error";
+    State["Closed"] = "closed";
+})($a1d9e98063dd4481$var$State || ($a1d9e98063dd4481$var$State = {}));
+const $a1d9e98063dd4481$var$DEFAULT_WAIT = $a1d9e98063dd4481$var$seconds(60);
+class $a1d9e98063dd4481$export$d84cf184fade0488 {
+    constructor(info, peer){
+        this.info = info;
+        this.peer = peer;
+        this.received = [];
+        this.state = "unconnected";
+        this.bitfield = null;
+        this.choke = true;
+        this.close = async ()=>{
+            console.error(`Closing connection to ${this.peer}`);
+            this.received.length = 0;
+            if (![
+                "error",
+                "closed"
+            ].includes(this.state)) this.state = "closed";
+            this.socket.destroy();
+        };
+        this.getDebugBufferStr = (buffer)=>{
+            const debugStr = `${buffer.length}b\t${(0, $89331aaf2ca9d62f$export$f69c19e57285b83a).getDebugType(buffer)}\t`;
+            return debugStr;
+        };
+        this.handleData = (data)=>{
+            console.error(`Rx ${this.getDebugBufferStr(data)}`, data);
+            this.received.push(data);
+        };
+        this.handleError = (err)=>{
+            console.error("Error", err);
+            this.state = "error";
+        };
+        this.handleClose = ()=>{
+            console.error("Closed");
+            if (this.state !== "error") this.state = "closed";
+        };
+        this.getNextMessage = async (maxWait = $a1d9e98063dd4481$var$DEFAULT_WAIT * 10)=>{
+            const firstBuff = await this.getNextBuffer(maxWait);
+            const statedMessageLen = firstBuff.readInt32BE(0);
+            const statedMessageId = firstBuff.readInt8(4);
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(statedMessageLen >= firstBuff.length - 5, `statedPayloadLen: ${statedMessageLen}, buff.length: ${firstBuff.length}`);
+            if (firstBuff.length - 4 === statedMessageLen) {
+                const msg = new (0, $89331aaf2ca9d62f$export$f69c19e57285b83a)(firstBuff);
+                return msg;
+            }
+            console.error(`Got partial payload for message type ${statedMessageId}, received: ${firstBuff.length - 4} of ${statedMessageLen}`);
+            const totalBuff = Buffer.alloc(statedMessageLen + 4);
+            firstBuff.copy(totalBuff, 0);
+            let iterationLimit = 10;
+            let copied = firstBuff.length;
+            do {
+                const left = totalBuff.length - copied;
+                console.error(`Copied ${(copied / totalBuff.length * 100).toFixed(0)}%  ${copied} of ${totalBuff.length}, remaining: ${left} `);
+                (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(iterationLimit-- > 0, `too many iterations`);
+                const next = await this.getNextBuffer(maxWait);
+                if ((0, $89331aaf2ca9d62f$export$f69c19e57285b83a).isKeepAlive(next)) {
+                    console.error(`Got keep-alive while waiting for more data in same block, continuing`);
+                    continue;
+                }
+                next.copy(totalBuff, copied);
+                copied += next.length;
+            }while (copied < totalBuff.length);
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(copied === totalBuff.length, `copied ${copied} !== totalBuff.length ${totalBuff.length}}`);
+            return new (0, $89331aaf2ca9d62f$export$f69c19e57285b83a)(totalBuff);
+        };
+        this.getNextBuffer = async (maxWait = $a1d9e98063dd4481$var$DEFAULT_WAIT)=>{
+            // hack - seems like there should be a way to wrap the socket handler in an async generator
+            return new Promise((resolve, reject)=>{
+                const current = this.received.shift();
+                if (current) {
+                    console.error(`No wait`);
+                    resolve(current);
+                    return;
+                }
+                const cancelLimit = setTimeout(()=>{
+                    reject(new Error(`Timeout, waited longer than ${maxWait}ms`));
+                }, maxWait);
+                const cancelCheck = setInterval(()=>{
+                    // process.stderr.write(`.`);
+                    if ([
+                        "error",
+                        "closed"
+                    ].includes(this.state) && // the connection could be closed before the interval allows the consumer to pop the buffered message(s)
+                    !this.received.length) {
+                        // process.stderr.write(`\n`);
+                        clearInterval(cancelCheck);
+                        clearTimeout(cancelLimit);
+                        reject(new Error(`getNextBuffer() -> cancelCheck -> state: ${this.state}, received.length: ${this.received.length}`));
+                        return;
+                    }
+                    const current = this.received.shift();
+                    if (current) {
+                        // process.stderr.write(`\n`);
+                        resolve(current);
+                        clearInterval(cancelCheck);
+                        clearTimeout(cancelLimit);
+                    }
+                }, 100);
+            });
+        };
+    }
+    async downloadSinglePiece(pieceNum) {
+        if (this.state !== "handshaked") await this.handshake();
+        this.state = "downloading";
+        console.error(`Attempting download of piece ${pieceNum} of ${this.info.pieceHashes.length} from peer ${this.peer}`);
+        // get to state where we can request piece
+        {
+            await this.sendMessage((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Interested);
+            let msg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
+            if (msg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Bitfield)) {
+                this.bitfield = msg;
+                msg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
+            }
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(msg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Unchoke), "expected unchoke");
+            this.choke = false;
+        }
+        await this.sendRequest(pieceNum);
+        // TODO - loops
+        // - break into blocks
+        // - each block could be more than one `data`
+        // - probably not pipeline
+        const pieceMsg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceMsg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Piece), `expected piece, got: ${pieceMsg}`);
+        console.error(`Piece message ${pieceMsg}`, pieceMsg.payload);
+        // TODO: need to validate sha1
+        return Buffer.from(pieceMsg.payload);
+    }
+    async handshake(maxWait = $a1d9e98063dd4481$var$DEFAULT_WAIT) {
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.state === "unconnected" || this.state === "connected", `handshake started in state: ${this.state}`);
+        if (this.state !== "connected") await this.connect();
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.state === "connected", `handshake started in state: ${this.state}`);
+        const clientHandshake = (0, $38153ead2db24425$export$74f755347fc62200)(this.info);
+        console.error(`Tx ${this.getDebugBufferStr(clientHandshake)}`, clientHandshake);
+        await new Promise((resolve, reject)=>{
+            this.socket.write(clientHandshake, (err)=>{
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+        // assume return handshake fits in one data
+        const serverHandshake = await this.getNextBuffer(maxWait);
+        const parsed = (0, $38153ead2db24425$export$ba6075743c6fa6a5)(serverHandshake);
+        return parsed;
+    }
+    connect(maxWait = $a1d9e98063dd4481$var$DEFAULT_WAIT) {
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.state === "unconnected", `connect started in state: ${this.state}`);
+        const [host, portStr] = this.peer.split(":");
+        const port = Number.parseInt(portStr, 10);
+        if (!(Number.isSafeInteger(port) && port > 0)) throw new Error(`bad port: ${portStr}`);
+        const conn = this;
+        return new Promise((resolve, reject)=>{
+            const timeout = setTimeout(()=>{
+                reject(new Error(`Connection to ${this.peer} timed out after ${maxWait}ms}`));
+                conn.state = "error";
+            }, maxWait);
+            conn.socket = new (0, $jC3rJ$nodenet.Socket)().on("data", this.handleData).on("close", this.handleClose).on("error", this.handleError).connect(port, host, ()=>{
+                console.error(`Connected to peer ${this.peer}`);
+                conn.state = "connected";
+                clearTimeout(timeout);
+                resolve();
+            });
+        });
+    }
+    // TODO: loop - each piece has multiple blocks, the last may not be a full size block
+    async sendRequest(piece = 0, block = 0, blockLen = 16384) {
+        if (this.choke) throw new Error("sent request while choked");
+        console.error(`Sending request for piece ${piece}, block ${block}, length ${blockLen}`);
+        const req = Buffer.alloc(12);
+        req.writeUInt32BE(piece, 0);
+        req.writeUInt32BE(block, 4);
+        req.writeUInt32BE(blockLen, 8);
+        return this.sendMessage((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Request, req);
+    }
+    async sendMessage(id, payload) {
+        const buffer = (0, $89331aaf2ca9d62f$export$f69c19e57285b83a).makeSendBuffer(id, payload);
+        return new Promise((resolve, reject)=>{
+            this.socket.write(buffer, (err)=>{
+                const debugStr = this.getDebugBufferStr(buffer);
+                if (err) {
+                    console.error(`Error Tx ${debugStr}`, buffer);
+                    reject(err);
+                } else {
+                    console.error(`Tx ${debugStr}`, buffer);
+                    resolve();
+                }
+            });
+        });
+    }
+}
+function $a1d9e98063dd4481$var$minutes(m) {
+    return $a1d9e98063dd4481$var$seconds(m * 60);
+}
+function $a1d9e98063dd4481$var$seconds(s) {
+    return s * 1000;
+} // --
+
+
+
+
+function $3364690218b71671$export$4812e460280c6ef2(arr) {
+    const index = Math.floor(Math.random() * arr.length);
+    return arr[index];
+}
+
+
+async function $76b9b213dde1c778$export$1ad2ea65d0e037bb(saveFile, torrentFile, pieceNum) {
+    await $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum);
+    return `Piece ${pieceNum} downloaded to ${saveFile}`;
+}
+async function $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum) {
+    const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(torrentFile);
+    const peersResp = await (0, $1f1932f95910f014$export$a8157895bd9c53da)(torrentFile);
+    const peer = (0, $3364690218b71671$export$4812e460280c6ef2)(peersResp.peers);
+    const conn = new (0, $a1d9e98063dd4481$export$d84cf184fade0488)(info, peer);
+    try {
+        const piece = await conn.downloadSinglePiece(pieceNum);
+        // const piece = await Promise.race(
+        //   peersResp.peers.map(async (peer) => {
+        //     const conn = new PeerConnection(info, peer);
+        //     const piece = await conn.downloadSinglePiece(pieceNum);
+        //     return piece;
+        //   }),
+        // );
+        // ideally we could stream the piece into the file but that's more involved
+        // since we validate the sha1. this should be fine since we're only writing a piece at a time
+        await (0, ($parcel$interopDefault($jC3rJ$nodefspromises))).writeFile(saveFile, piece);
+        console.error(`saved piece ${pieceNum} to ${saveFile}`);
+    } finally{
+        conn.close();
+    }
+}
+
+
+
+
+
+
+async function $2ff16d2e43a79b67$export$e90fdf5f0bf87fd(file, peer) {
+    const conn = new (0, $a1d9e98063dd4481$export$d84cf184fade0488)((0, $0a38c752b5042f46$export$c73dcf559dad2f44)(file), peer);
+    const { peerIdHex: peerIdHex } = await conn.handshake();
+    await conn.close();
+    return `Peer ID: ${peerIdHex}`;
+}
+
+
 
 
 
@@ -485,6 +801,18 @@ async function $3f97e85369539468$export$f22da7240b7add18() {
                 const file = process.argv[3];
                 const peer = process.argv[4];
                 console.log(await (0, $2ff16d2e43a79b67$export$e90fdf5f0bf87fd)(file, peer));
+                break;
+            }
+        case "download_piece":
+            {
+                const flag = process.argv[3];
+                const saveFile = process.argv[4];
+                const torrentFile = process.argv[5];
+                const piece = process.argv[6];
+                if (flag !== "-o") throw new Error(`Expected flag -o, got ${flag}`);
+                const pieceNum = Number.parseInt(piece, 10);
+                if (!(Number.isSafeInteger(pieceNum) && pieceNum >= 0)) throw new Error(`bad piece: ${piece}`);
+                console.log(await (0, $76b9b213dde1c778$export$1ad2ea65d0e037bb)(saveFile, torrentFile, pieceNum));
                 break;
             }
         default:

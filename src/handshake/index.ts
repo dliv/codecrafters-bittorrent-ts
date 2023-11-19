@@ -1,1 +1,1 @@
-export { handshakeCommand } from './handshake';
+export * from './handshake';

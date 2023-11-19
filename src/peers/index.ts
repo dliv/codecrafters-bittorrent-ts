@@ -1,1 +1,2 @@
-export { peersCommand } from './peers';
+export { peers, peersCommand } from './peers';
+export { PeerConnection } from './peer-connection';

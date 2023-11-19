@@ -6,9 +6,7 @@ describe('decodeBencode', () => {
   });
 
   it('decodes array', () => {
-    expect(String(decodeBencode(Buffer.from('l5:helloi52ee')))).toEqual(
-      '["hello",52]',
-    );
+    expect(String(decodeBencode(Buffer.from('l5:helloi52ee')))).toEqual('["hello",52]');
   });
 
   it('can decode dictionary with array of strings', () => {

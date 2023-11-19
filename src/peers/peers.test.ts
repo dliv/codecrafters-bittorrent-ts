@@ -15,11 +15,7 @@ describe('decodePeersResp', () => {
   it('works', () => {
     expect(decodePeersResp(exampleResp)).toEqual({
       interval: 60,
-      peers: [
-        '178.62.82.89:51470',
-        '165.232.33.77:51467',
-        '178.62.85.20:51489',
-      ],
+      peers: ['178.62.82.89:51470', '165.232.33.77:51467', '178.62.85.20:51489'],
     });
   });
 });

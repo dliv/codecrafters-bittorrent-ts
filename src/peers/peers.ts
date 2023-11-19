@@ -26,8 +26,9 @@ export function decodePeersResp(resp: Buffer) {
   const peerStrs: string[] = [];
   for (let i = 0; i < peersBytes.length; i += 6) {
     const ip = peersBytes.slice(i, i + 4).join('.');
-    const [p0, p1] = peersBytes.slice(i + 4, i + 6);
-    const port = (p0 << 8) | p1;
+    // const [p0, p1] = peersBytes.slice(i + 4, i + 6);
+    // const port = (p0 << 8) | p1;
+    const port = Buffer.from(peersBytes).readUInt16BE(i + 4);
     const str = [ip, port].join(':');
     peerStrs.push(str);
   }
@@ -56,6 +57,10 @@ function getPeersUrl(info): string {
 // exported for testing
 export function encodeInfoHash(hexStr: string): string {
   const encoded: string[] = [];
+  // this is not `encodeURIComponent`
+  // the info hash is hex where each pair represents a byte
+  // we could escape them all with `%` but the challenge comments say that's not efficient enough
+  // so map the pairs that match a safe ascii
   for (let i = 0; i < hexStr.length; i += 2) {
     const pair = hexStr.slice(i, i + 2);
     let e = '';

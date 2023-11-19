@@ -1,4 +1,5 @@
-// serialization issues when round tripping bytes to "chars" to bytes
-// keep the original bytes for the string
-// TODO: could maybe get away with a WeakRef here
-export const hackStrToBytes = new Map();
+// my original decoder assumed we wouldn't need the original bytes again
+// but we do and i'm too lazy to touch the decoder again
+// so this hack allows looking up the original bytes
+// (could maybe use a WeakRef but really the decoder should just be rewritten)
+export const hackStrToBytes = new Map<string, number[]>();

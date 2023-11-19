@@ -1,7 +1,7 @@
 import { asByte } from '../decode';
 import { hackStrToBytes } from '../hack';
 
-export function encodeDict(dict) {
+export function encodeDict(dict: Record<string, unknown>) {
   const keys = Object.keys(dict).sort();
   const bytes: (number | number[])[] = [asByte('d')];
   for (const key of keys) {

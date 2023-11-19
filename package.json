@@ -6,10 +6,11 @@
   },
   "scripts": {
     "clean": "rimraf .parcel-cache/ && rimraf app/",
-    "build": "npm run clean && parcel build",
+    "build": "npm run type-check && npm run format && npm t && npm run clean && parcel build",
     "format": "prettier --write 'src/**/*.ts'",
     "start": "node app/main.js",
-    "test": "jest"
+    "test": "jest",
+    "type-check": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/jest": "^29.5.8",
