@@ -1,3 +1,6 @@
+A horrible, minimal TypeScript implementation of bittorrent for [CodeCrafters.io](https://app.codecrafters.io).
+
+
 [![progress-banner](https://backend.codecrafters.io/progress/bittorrent/3754d490-65d8-4720-877a-63a11cce3184)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for JavaScript solutions to the
