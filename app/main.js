@@ -5,6 +5,7 @@ var $jC3rJ$nodefs = require("node:fs");
 var $jC3rJ$nodehttp = require("node:http");
 var $jC3rJ$nodeurl = require("node:url");
 var $jC3rJ$nodenet = require("node:net");
+var $jC3rJ$assert = require("assert");
 
 
 function $parcel$interopDefault(a) {
@@ -400,6 +401,7 @@ function $1f1932f95910f014$export$3449a3b321ef3023(hexStr) {
 
 
 
+
 function $38153ead2db24425$export$ba6075743c6fa6a5(data) {
     // should validate the info hash
     const peerId = data.subarray(data.length - 20);
@@ -519,6 +521,40 @@ class $89331aaf2ca9d62f$export$f69c19e57285b83a {
 }
 
 
+
+function $848fcf8f03b5d1e1$export$198f1d546df1bebf(torrent, pieceNum) {
+    const pieceLen = $848fcf8f03b5d1e1$export$9c65e2e4ea37d3e2(torrent, pieceNum);
+    const blocks = $848fcf8f03b5d1e1$var$getBlocks(pieceLen);
+    let total = 0;
+    for (const b of blocks)total += b;
+    (0, ($parcel$interopDefault($jC3rJ$assert)))(total === pieceLen, `total ${total} !== pieceLen ${torrent.info.length}, pieceNum: ${pieceNum}, info['piece length']: ${torrent.info["piece length"]}]`);
+    return blocks;
+}
+function $848fcf8f03b5d1e1$export$9c65e2e4ea37d3e2(torrent, pieceNum) {
+    (0, ($parcel$interopDefault($jC3rJ$assert)))(pieceNum < torrent.pieceHashes.length, `index out of bounds: pieceNum ${pieceNum}, torrent.pieceHashes.length ${torrent.pieceHashes.length}`);
+    const isLast = pieceNum === torrent.pieceHashes.length - 1;
+    const pieceLen = isLast ? torrent.info.length % torrent.info["piece length"] : torrent.info["piece length"];
+    return pieceLen;
+}
+function $848fcf8f03b5d1e1$var$getBlocks(remainingSize, blockSize = 16384, accum) {
+    const nextBlock = remainingSize > blockSize ? blockSize : remainingSize;
+    (0, ($parcel$interopDefault($jC3rJ$assert)))(nextBlock <= remainingSize, `nextBlock ${nextBlock} > remainingSize ${remainingSize}`);
+    return nextBlock === remainingSize ? [
+        ...accum ?? [],
+        nextBlock
+    ] : $848fcf8f03b5d1e1$var$getBlocks(remainingSize - nextBlock, blockSize, [
+        ...accum ?? [],
+        nextBlock
+    ]);
+}
+function $848fcf8f03b5d1e1$export$666252b437cce0c7(m) {
+    return $848fcf8f03b5d1e1$export$4792e48abc550fa1(m * 60);
+}
+function $848fcf8f03b5d1e1$export$4792e48abc550fa1(s) {
+    return s * 1000;
+}
+
+
 var $a1d9e98063dd4481$var$State;
 (function(State) {
     State["Unconnected"] = "unconnected";
@@ -528,10 +564,10 @@ var $a1d9e98063dd4481$var$State;
     State["Error"] = "error";
     State["Closed"] = "closed";
 })($a1d9e98063dd4481$var$State || ($a1d9e98063dd4481$var$State = {}));
-const $a1d9e98063dd4481$var$DEFAULT_WAIT = $a1d9e98063dd4481$var$seconds(60);
+const $a1d9e98063dd4481$var$DEFAULT_WAIT = (0, $848fcf8f03b5d1e1$export$4792e48abc550fa1)(60);
 class $a1d9e98063dd4481$export$d84cf184fade0488 {
-    constructor(info, peer){
-        this.info = info;
+    constructor(torrent, peer){
+        this.torrent = torrent;
         this.peer = peer;
         this.received = [];
         this.state = "unconnected";
@@ -596,7 +632,7 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
             return new Promise((resolve, reject)=>{
                 const current = this.received.shift();
                 if (current) {
-                    console.error(`No wait`);
+                    // console.error(`No wait`);
                     resolve(current);
                     return;
                 }
@@ -628,36 +664,66 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
         };
     }
     async downloadSinglePiece(pieceNum) {
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceNum >= 0, `pieceNum ${pieceNum} < 0`);
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceNum < this.torrent.pieceHashes.length, `index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`);
         if (this.state !== "handshaked") await this.handshake();
         this.state = "downloading";
-        console.error(`Attempting download of piece ${pieceNum} of ${this.info.pieceHashes.length} from peer ${this.peer}`);
+        console.error(`Attempting download of piece ${pieceNum} of ${this.torrent.pieceHashes.length} from peer ${this.peer}`);
+        // instructions: wait for bitfield
         // get to state where we can request piece
         {
             await this.sendMessage((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Interested);
-            let msg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
+            let msg = await this.getNextMessage((0, $848fcf8f03b5d1e1$export$666252b437cce0c7)(5));
             if (msg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Bitfield)) {
                 this.bitfield = msg;
-                msg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
+                // instructions: send interested
+                msg = await this.getNextMessage((0, $848fcf8f03b5d1e1$export$666252b437cce0c7)(5));
             }
             (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(msg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Unchoke), "expected unchoke");
             this.choke = false;
         }
-        await this.sendRequest(pieceNum);
-        // TODO - loops
-        // - break into blocks
-        // - each block could be more than one `data`
-        // - probably not pipeline
-        const pieceMsg = await this.getNextMessage($a1d9e98063dd4481$var$minutes(5));
-        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceMsg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Piece), `expected piece, got: ${pieceMsg}`);
-        console.error(`Piece message ${pieceMsg}`, pieceMsg.payload);
-        // TODO: need to validate sha1
-        return Buffer.from(pieceMsg.payload);
+        // const expectedPieceLen = getPieceLength(this.torrent, pieceNum);
+        const blocks = [];
+        const blockLens = (0, $848fcf8f03b5d1e1$export$198f1d546df1bebf)(this.torrent, pieceNum);
+        // const baseBlockLen = blockLens[0];
+        let copied = 0;
+        for(let i = 0; i < blockLens.length; i++){
+            const blockLen = blockLens[i];
+            await this.sendRequest(pieceNum, i, blockLen);
+            const pieceMsg = await this.getNextMessage((0, $848fcf8f03b5d1e1$export$666252b437cce0c7)(5));
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceMsg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Piece), `expected piece, got: ${pieceMsg}`);
+            console.error(`Piece message for p${pieceNum} b${i} ${pieceMsg}`, pieceMsg.payload);
+            // maybe this would need to be relaxed if we're pipelining
+            const rcvdPieceNum = pieceMsg.payload.readInt32BE(0);
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdPieceNum === pieceNum, `rcvdPieceNum ${rcvdPieceNum} !== pieceNum ${pieceNum}`);
+            const rcvdOffset = pieceMsg.payload.readInt32BE(4);
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
+            const rcvdPayload = pieceMsg.payload.subarray(8);
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdPayload.length === blockLen, `rcvdPayload.length ${rcvdPayload.length} !== blockLen ${blockLen}`);
+            blocks[rcvdOffset] = rcvdPayload;
+            copied += rcvdPayload.length;
+        }
+        const pieceBuff = Buffer.concat(blocks);
+        console.error(`Piece buffer p${pieceNum} size ${pieceBuff.length}b (copied: ${copied})`, pieceBuff);
+        // validate post conditions
+        {
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(copied === pieceBuff.length, `copied ${copied} !== pieceBuff.length ${pieceBuff.length}`);
+            // sha1
+            const hasher = (0, ($parcel$interopDefault($jC3rJ$nodecrypto))).createHash("sha1");
+            hasher.update(pieceBuff);
+            const sha1 = hasher.digest("hex");
+        // assert(
+        //   sha1 === this.torrent.pieceHashes[pieceNum],
+        //   `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`,
+        // );
+        }
+        return pieceBuff;
     }
     async handshake(maxWait = $a1d9e98063dd4481$var$DEFAULT_WAIT) {
         (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.state === "unconnected" || this.state === "connected", `handshake started in state: ${this.state}`);
         if (this.state !== "connected") await this.connect();
         (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(this.state === "connected", `handshake started in state: ${this.state}`);
-        const clientHandshake = (0, $38153ead2db24425$export$74f755347fc62200)(this.info);
+        const clientHandshake = (0, $38153ead2db24425$export$74f755347fc62200)(this.torrent);
         console.error(`Tx ${this.getDebugBufferStr(clientHandshake)}`, clientHandshake);
         await new Promise((resolve, reject)=>{
             this.socket.write(clientHandshake, (err)=>{
@@ -715,12 +781,6 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
         });
     }
 }
-function $a1d9e98063dd4481$var$minutes(m) {
-    return $a1d9e98063dd4481$var$seconds(m * 60);
-}
-function $a1d9e98063dd4481$var$seconds(s) {
-    return s * 1000;
-} // --
 
 
 
@@ -733,7 +793,7 @@ function $3364690218b71671$export$4812e460280c6ef2(arr) {
 
 async function $76b9b213dde1c778$export$1ad2ea65d0e037bb(saveFile, torrentFile, pieceNum) {
     await $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum);
-    return `Piece ${pieceNum} downloaded to ${saveFile}`;
+    return `Piece ${pieceNum} downloaded to ${saveFile}.`;
 }
 async function $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum) {
     const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(torrentFile);

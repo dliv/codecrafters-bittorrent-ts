@@ -6,7 +6,7 @@ import { sample } from './util';
 
 export async function downloadPieceCommand(saveFile: string, torrentFile: string, pieceNum: number): Promise<string> {
   await downloadPiece(saveFile, torrentFile, pieceNum);
-  return `Piece ${pieceNum} downloaded to ${saveFile}`;
+  return `Piece ${pieceNum} downloaded to ${saveFile}.`;
 }
 
 export async function downloadPiece(saveFile: string, torrentFile: string, pieceNum: number): Promise<void> {

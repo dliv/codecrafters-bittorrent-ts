@@ -1,9 +1,11 @@
 import assert from 'node:assert';
+import crypto from 'node:crypto';
 import { Socket } from 'node:net';
 
 import { Handshake, getHandshake, parseHandshake } from '../handshake/utils';
 import { TorrentInfo } from '../info';
 import { Message, MessageId } from './message';
+import { seconds, minutes, getPieceLength, getBlocksForTorrentPiece } from './utils';
 
 enum State {
   Unconnected = 'unconnected',
@@ -26,16 +28,26 @@ export class PeerConnection {
   private choke = true;
 
   constructor(
-    private readonly info: TorrentInfo,
+    private readonly torrent: TorrentInfo,
     private readonly peer: string,
   ) {}
 
   async downloadSinglePiece(pieceNum: number): Promise<Buffer> {
+    assert(pieceNum >= 0, `pieceNum ${pieceNum} < 0`);
+    assert(
+      pieceNum < this.torrent.pieceHashes.length,
+      `index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`,
+    );
+
     if (this.state !== State.Handshaked) {
       await this.handshake();
     }
     this.state = State.Downloading;
-    console.error(`Attempting download of piece ${pieceNum} of ${this.info.pieceHashes.length} from peer ${this.peer}`);
+    console.error(
+      `Attempting download of piece ${pieceNum} of ${this.torrent.pieceHashes.length} from peer ${this.peer}`,
+    );
+
+    // instructions: wait for bitfield
 
     // get to state where we can request piece
     {
@@ -43,26 +55,57 @@ export class PeerConnection {
       let msg = await this.getNextMessage(minutes(5));
       if (msg.isA(MessageId.Bitfield)) {
         this.bitfield = msg;
+        // instructions: send interested
         msg = await this.getNextMessage(minutes(5));
       }
       assert(msg.isA(MessageId.Unchoke), 'expected unchoke');
       this.choke = false;
     }
 
-    await this.sendRequest(pieceNum);
+    // const expectedPieceLen = getPieceLength(this.torrent, pieceNum);
+    const blocks: Buffer[] = [];
 
-    // TODO - loops
-    // - break into blocks
-    // - each block could be more than one `data`
-    // - probably not pipeline
+    const blockLens = getBlocksForTorrentPiece(this.torrent, pieceNum);
+    // const baseBlockLen = blockLens[0];
+    let copied = 0;
+    for (let i = 0; i < blockLens.length; i++) {
+      const blockLen = blockLens[i];
+      await this.sendRequest(pieceNum, i, blockLen);
+      const pieceMsg = await this.getNextMessage(minutes(5));
+      assert(pieceMsg.isA(MessageId.Piece), `expected piece, got: ${pieceMsg}`);
+      console.error(`Piece message for p${pieceNum} b${i} ${pieceMsg}`, pieceMsg.payload);
 
-    const pieceMsg = await this.getNextMessage(minutes(5));
-    assert(pieceMsg.isA(MessageId.Piece), `expected piece, got: ${pieceMsg}`);
-    console.error(`Piece message ${pieceMsg}`, pieceMsg.payload);
+      // maybe this would need to be relaxed if we're pipelining
+      const rcvdPieceNum = pieceMsg.payload.readInt32BE(0);
+      assert(rcvdPieceNum === pieceNum, `rcvdPieceNum ${rcvdPieceNum} !== pieceNum ${pieceNum}`);
 
-    // TODO: need to validate sha1
+      const rcvdOffset = pieceMsg.payload.readInt32BE(4);
+      assert(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
 
-    return Buffer.from(pieceMsg.payload);
+      const rcvdPayload = pieceMsg.payload.subarray(8);
+      assert(rcvdPayload.length === blockLen, `rcvdPayload.length ${rcvdPayload.length} !== blockLen ${blockLen}`);
+      blocks[rcvdOffset] = rcvdPayload;
+      copied += rcvdPayload.length;
+    }
+
+    const pieceBuff = Buffer.concat(blocks);
+    console.error(`Piece buffer p${pieceNum} size ${pieceBuff.length}b (copied: ${copied})`, pieceBuff);
+
+    // validate post conditions
+    {
+      assert(copied === pieceBuff.length, `copied ${copied} !== pieceBuff.length ${pieceBuff.length}`);
+
+      // sha1
+      const hasher = crypto.createHash('sha1');
+      hasher.update(pieceBuff);
+      const sha1 = hasher.digest('hex');
+      // assert(
+      //   sha1 === this.torrent.pieceHashes[pieceNum],
+      //   `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`,
+      // );
+    }
+
+    return pieceBuff;
   }
 
   async handshake(maxWait = DEFAULT_WAIT): Promise<Handshake> {
@@ -77,7 +120,7 @@ export class PeerConnection {
 
     assert(this.state === State.Connected, `handshake started in state: ${this.state}`);
 
-    const clientHandshake = getHandshake(this.info);
+    const clientHandshake = getHandshake(this.torrent);
     console.error(`Tx ${this.getDebugBufferStr(clientHandshake)}`, clientHandshake);
     await new Promise<void>((resolve, reject) => {
       this.socket.write(clientHandshake, (err) => {
@@ -230,7 +273,7 @@ export class PeerConnection {
     return new Promise((resolve, reject) => {
       const current = this.received.shift();
       if (current) {
-        console.error(`No wait`);
+        // console.error(`No wait`);
         resolve(current);
         return;
       }
@@ -267,13 +310,3 @@ export class PeerConnection {
     });
   };
 }
-
-function minutes(m: number) {
-  return seconds(m * 60);
-}
-
-function seconds(s: number) {
-  return s * 1_000;
-}
-
-// --
