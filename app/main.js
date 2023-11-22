@@ -1,5 +1,5 @@
-var $jC3rJ$nodefspromises = require("node:fs/promises");
 var $jC3rJ$nodeassert = require("node:assert");
+var $jC3rJ$nodefspromises = require("node:fs/promises");
 var $jC3rJ$nodecrypto = require("node:crypto");
 var $jC3rJ$nodefs = require("node:fs");
 var $jC3rJ$nodehttp = require("node:http");
@@ -186,6 +186,7 @@ function $e4e5653eb30567a4$export$a1124e132c740495(bytes, idx = 0, tokens = new 
     }
     throw new Error(`Unknown token type at index ${idx}`);
 }
+
 
 
 
@@ -531,7 +532,7 @@ function $848fcf8f03b5d1e1$export$198f1d546df1bebf(torrent, pieceNum) {
     return blocks;
 }
 function $848fcf8f03b5d1e1$export$9c65e2e4ea37d3e2(torrent, pieceNum) {
-    (0, ($parcel$interopDefault($jC3rJ$assert)))(pieceNum < torrent.pieceHashes.length, `index out of bounds: pieceNum ${pieceNum}, torrent.pieceHashes.length ${torrent.pieceHashes.length}`);
+    (0, ($parcel$interopDefault($jC3rJ$assert)))(pieceNum < torrent.pieceHashes.length, `utils: index out of bounds: pieceNum ${pieceNum}, torrent.pieceHashes.length ${torrent.pieceHashes.length}`);
     const isLast = pieceNum === torrent.pieceHashes.length - 1;
     const pieceLen = isLast ? torrent.info.length % torrent.info["piece length"] : torrent.info["piece length"];
     return pieceLen;
@@ -580,7 +581,7 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
                 "error",
                 "closed"
             ].includes(this.state)) this.state = "closed";
-            this.socket.destroy();
+            this.socket?.destroy();
         };
         this.getDebugBufferStr = (buffer)=>{
             const debugStr = `${buffer.length}b\t${(0, $89331aaf2ca9d62f$export$f69c19e57285b83a).getDebugType(buffer)}\t`;
@@ -665,7 +666,7 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
     }
     async downloadSinglePiece(pieceNum) {
         (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceNum >= 0, `pieceNum ${pieceNum} < 0`);
-        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceNum < this.torrent.pieceHashes.length, `index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`);
+        (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceNum < this.torrent.pieceHashes.length, `downloadSinglePiece: index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`);
         if (this.state !== "handshaked") await this.handshake();
         this.state = "downloading";
         console.error(`Attempting download of piece ${pieceNum} of ${this.torrent.pieceHashes.length} from peer ${this.peer}`);
@@ -690,6 +691,7 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
         let copied = 0;
         for(let i = 0; i < blockLens.length; i++){
             const blockLen = blockLens[i];
+            console.error(`Sending request for piece ${pieceNum}, block ${i}/${blockLens.length} offset ${blockOffset}, block length ${blockLen}`);
             await this.sendRequest(pieceNum, blockOffset, blockLen);
             const pieceMsg = await this.getNextMessage((0, $848fcf8f03b5d1e1$export$666252b437cce0c7)(5));
             (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceMsg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Piece), `expected piece, got: ${pieceMsg}`);
@@ -756,7 +758,6 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
     }
     async sendRequest(piece = 0, blockOffset = 0, blockLen = 16384) {
         if (this.choke) throw new Error("sent request while choked");
-        console.error(`Sending request for piece ${piece}, blockOffset ${blockOffset}, length ${blockLen}`);
         const req = Buffer.alloc(12);
         req.writeUInt32BE(piece, 0);
         req.writeUInt32BE(blockOffset, 4);
@@ -783,20 +784,20 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
 
 
 
-function $3364690218b71671$export$4812e460280c6ef2(arr) {
+function $9bf045ca92c3524d$export$4812e460280c6ef2(arr) {
     const index = Math.floor(Math.random() * arr.length);
     return arr[index];
 }
 
 
-async function $76b9b213dde1c778$export$1ad2ea65d0e037bb(saveFile, torrentFile, pieceNum) {
-    await $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum);
+async function $b9842ed8432bf47f$export$1ad2ea65d0e037bb(saveFile, torrentFile, pieceNum) {
+    await $b9842ed8432bf47f$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum);
     return `Piece ${pieceNum} downloaded to ${saveFile}.`;
 }
-async function $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum) {
+async function $b9842ed8432bf47f$export$92da34fce2b60aac(saveFile, torrentFile, pieceNum) {
     const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(torrentFile);
     const peersResp = await (0, $1f1932f95910f014$export$a8157895bd9c53da)(torrentFile);
-    const peer = (0, $3364690218b71671$export$4812e460280c6ef2)(peersResp.peers);
+    const peer = (0, $9bf045ca92c3524d$export$4812e460280c6ef2)(peersResp.peers);
     const conn = new (0, $a1d9e98063dd4481$export$d84cf184fade0488)(info, peer);
     try {
         const piece = await conn.downloadSinglePiece(pieceNum);
@@ -814,6 +815,37 @@ async function $76b9b213dde1c778$export$92da34fce2b60aac(saveFile, torrentFile, 
     } finally{
         conn.close();
     }
+}
+async function $b9842ed8432bf47f$export$6d39d6fea29b6ff5(saveFile, torrentFile) {
+    await $b9842ed8432bf47f$export$24422be91ad4011f(saveFile, torrentFile);
+    return `Downloaded ${torrentFile} to ${saveFile}.`;
+}
+async function $b9842ed8432bf47f$export$24422be91ad4011f(saveFile, torrentFile) {
+    const info = (0, $0a38c752b5042f46$export$c73dcf559dad2f44)(torrentFile);
+    const peersResp = await (0, $1f1932f95910f014$export$a8157895bd9c53da)(torrentFile);
+    // for a real torrent :
+    // - the entire buffer may not fit in memory
+    // - parallel
+    const pieces = [];
+    for(let i = 0; i < info.pieceHashes.length; i++)for(let j = 0; j < 3; ++j){
+        if (pieces[i]) continue;
+        const peer = (0, $9bf045ca92c3524d$export$4812e460280c6ef2)(peersResp.peers);
+        const conn = new (0, $a1d9e98063dd4481$export$d84cf184fade0488)(info, peer);
+        try {
+            const piece = await conn.downloadSinglePiece(i);
+            pieces[i] = piece;
+        } catch (e) {
+            console.error(`Error (try:${j}) on piece ${i}: ${e.message}`);
+        } finally{
+            conn.close();
+        }
+        await new Promise((resolve)=>setTimeout(resolve, 200));
+    }
+    for(let i = 0; i < info.pieceHashes.length; i++)(0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieces[i], `missing piece ${i}`);
+    const fileBuffer = Buffer.concat(pieces);
+    (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(fileBuffer.length === info.info.length, `wrong length: fileBuffer ${fileBuffer.length} !== info ${info.info.length}`);
+    await (0, ($parcel$interopDefault($jC3rJ$nodefspromises))).writeFile(saveFile, fileBuffer);
+    console.error(`saved ${torrentFile} to ${saveFile}`);
 }
 
 
@@ -870,7 +902,16 @@ async function $3f97e85369539468$export$f22da7240b7add18() {
                 if (flag !== "-o") throw new Error(`Expected flag -o, got ${flag}`);
                 const pieceNum = Number.parseInt(piece, 10);
                 if (!(Number.isSafeInteger(pieceNum) && pieceNum >= 0)) throw new Error(`bad piece: ${piece}`);
-                console.log(await (0, $76b9b213dde1c778$export$1ad2ea65d0e037bb)(saveFile, torrentFile, pieceNum));
+                console.log(await (0, $b9842ed8432bf47f$export$1ad2ea65d0e037bb)(saveFile, torrentFile, pieceNum));
+                break;
+            }
+        case "download":
+            {
+                const flag = process.argv[3];
+                const saveFile = process.argv[4];
+                const torrentFile = process.argv[5];
+                if (flag !== "-o") throw new Error(`Expected flag -o, got ${flag}`);
+                console.log(await (0, $b9842ed8432bf47f$export$6d39d6fea29b6ff5)(saveFile, torrentFile));
                 break;
             }
         default:

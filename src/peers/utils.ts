@@ -20,7 +20,7 @@ export function getBlocksForTorrentPiece(torrent: TorrentInfo, pieceNum: number)
 export function getPieceLength(torrent: TorrentInfo, pieceNum: number): number {
   assert(
     pieceNum < torrent.pieceHashes.length,
-    `index out of bounds: pieceNum ${pieceNum}, torrent.pieceHashes.length ${torrent.pieceHashes.length}`,
+    `utils: index out of bounds: pieceNum ${pieceNum}, torrent.pieceHashes.length ${torrent.pieceHashes.length}`,
   );
   const isLast = pieceNum === torrent.pieceHashes.length - 1;
   const pieceLen = isLast ? torrent.info.length % torrent.info['piece length'] : torrent.info['piece length'];

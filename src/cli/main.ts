@@ -1,5 +1,5 @@
 import { decodeCommand } from '../decode';
-import { downloadPieceCommand } from '../download_piece';
+import { downloadCommand, downloadPieceCommand } from '../download';
 import { handshakeCommand } from '../handshake';
 import { infoCommand } from '../info';
 import { peersCommand } from '../peers';
@@ -42,6 +42,16 @@ export async function main() {
         throw new Error(`bad piece: ${piece}`);
       }
       console.log(await downloadPieceCommand(saveFile, torrentFile, pieceNum));
+      break;
+    }
+    case 'download': {
+      const flag = process.argv[3];
+      const saveFile = process.argv[4];
+      const torrentFile = process.argv[5];
+      if (flag !== '-o') {
+        throw new Error(`Expected flag -o, got ${flag}`);
+      }
+      console.log(await downloadCommand(saveFile, torrentFile));
       break;
     }
     default:

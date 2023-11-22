@@ -36,7 +36,7 @@ export class PeerConnection {
     assert(pieceNum >= 0, `pieceNum ${pieceNum} < 0`);
     assert(
       pieceNum < this.torrent.pieceHashes.length,
-      `index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`,
+      `downloadSinglePiece: index out of bounds: pieceNum ${pieceNum}, pieceHashes.length ${this.torrent.pieceHashes.length}`,
     );
 
     if (this.state !== State.Handshaked) {
@@ -73,6 +73,9 @@ export class PeerConnection {
     let copied = 0;
     for (let i = 0; i < blockLens.length; i++) {
       const blockLen = blockLens[i];
+      console.error(
+        `Sending request for piece ${pieceNum}, block ${i}/${blockLens.length} offset ${blockOffset}, block length ${blockLen}`,
+      );
       await this.sendRequest(pieceNum, blockOffset, blockLen);
       const pieceMsg = await this.getNextMessage(minutes(5));
       assert(pieceMsg.isA(MessageId.Piece), `expected piece, got: ${pieceMsg}`);
@@ -178,14 +181,13 @@ export class PeerConnection {
     if (![State.Error, State.Closed].includes(this.state)) {
       this.state = State.Closed;
     }
-    this.socket.destroy();
+    this.socket?.destroy();
   };
 
   private async sendRequest(piece = 0, blockOffset = 0, blockLen = 16 * 1024): Promise<void> {
     if (this.choke) {
       throw new Error('sent request while choked');
     }
-    console.error(`Sending request for piece ${piece}, blockOffset ${blockOffset}, length ${blockLen}`);
     const req = Buffer.alloc(12);
     req.writeUInt32BE(piece, 0);
     req.writeUInt32BE(blockOffset, 4);
