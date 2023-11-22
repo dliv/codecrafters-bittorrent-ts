@@ -66,11 +66,14 @@ export class PeerConnection {
     const blocks: Buffer[] = [];
 
     const blockLens = getBlocksForTorrentPiece(this.torrent, pieceNum);
-    // const baseBlockLen = blockLens[0];
+    const baseBlockLen = blockLens[0];
+
+    let blockOffset = 0;
+
     let copied = 0;
     for (let i = 0; i < blockLens.length; i++) {
       const blockLen = blockLens[i];
-      await this.sendRequest(pieceNum, i, blockLen);
+      await this.sendRequest(pieceNum, blockOffset, blockLen);
       const pieceMsg = await this.getNextMessage(minutes(5));
       assert(pieceMsg.isA(MessageId.Piece), `expected piece, got: ${pieceMsg}`);
       console.error(`Piece message for p${pieceNum} b${i} ${pieceMsg}`, pieceMsg.payload);
@@ -80,11 +83,14 @@ export class PeerConnection {
       assert(rcvdPieceNum === pieceNum, `rcvdPieceNum ${rcvdPieceNum} !== pieceNum ${pieceNum}`);
 
       const rcvdOffset = pieceMsg.payload.readInt32BE(4);
-      assert(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
+      // assert(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
+      blockOffset = rcvdOffset + baseBlockLen;
 
       const rcvdPayload = pieceMsg.payload.subarray(8);
       assert(rcvdPayload.length === blockLen, `rcvdPayload.length ${rcvdPayload.length} !== blockLen ${blockLen}`);
-      blocks[rcvdOffset] = rcvdPayload;
+
+      blocks[i] = rcvdPayload;
+
       copied += rcvdPayload.length;
     }
 
@@ -99,10 +105,10 @@ export class PeerConnection {
       const hasher = crypto.createHash('sha1');
       hasher.update(pieceBuff);
       const sha1 = hasher.digest('hex');
-      // assert(
-      //   sha1 === this.torrent.pieceHashes[pieceNum],
-      //   `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`,
-      // );
+      assert(
+        sha1 === this.torrent.pieceHashes[pieceNum],
+        `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`,
+      );
     }
 
     return pieceBuff;
@@ -175,15 +181,14 @@ export class PeerConnection {
     this.socket.destroy();
   };
 
-  // TODO: loop - each piece has multiple blocks, the last may not be a full size block
-  private async sendRequest(piece = 0, block = 0, blockLen = 16 * 1024): Promise<void> {
+  private async sendRequest(piece = 0, blockOffset = 0, blockLen = 16 * 1024): Promise<void> {
     if (this.choke) {
       throw new Error('sent request while choked');
     }
-    console.error(`Sending request for piece ${piece}, block ${block}, length ${blockLen}`);
+    console.error(`Sending request for piece ${piece}, blockOffset ${blockOffset}, length ${blockLen}`);
     const req = Buffer.alloc(12);
     req.writeUInt32BE(piece, 0);
-    req.writeUInt32BE(block, 4);
+    req.writeUInt32BE(blockOffset, 4);
     req.writeUInt32BE(blockLen, 8);
     return this.sendMessage(MessageId.Request, req);
   }

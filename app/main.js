@@ -685,11 +685,12 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
         // const expectedPieceLen = getPieceLength(this.torrent, pieceNum);
         const blocks = [];
         const blockLens = (0, $848fcf8f03b5d1e1$export$198f1d546df1bebf)(this.torrent, pieceNum);
-        // const baseBlockLen = blockLens[0];
+        const baseBlockLen = blockLens[0];
+        let blockOffset = 0;
         let copied = 0;
         for(let i = 0; i < blockLens.length; i++){
             const blockLen = blockLens[i];
-            await this.sendRequest(pieceNum, i, blockLen);
+            await this.sendRequest(pieceNum, blockOffset, blockLen);
             const pieceMsg = await this.getNextMessage((0, $848fcf8f03b5d1e1$export$666252b437cce0c7)(5));
             (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(pieceMsg.isA((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Piece), `expected piece, got: ${pieceMsg}`);
             console.error(`Piece message for p${pieceNum} b${i} ${pieceMsg}`, pieceMsg.payload);
@@ -697,10 +698,11 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
             const rcvdPieceNum = pieceMsg.payload.readInt32BE(0);
             (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdPieceNum === pieceNum, `rcvdPieceNum ${rcvdPieceNum} !== pieceNum ${pieceNum}`);
             const rcvdOffset = pieceMsg.payload.readInt32BE(4);
-            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
+            // assert(rcvdOffset === i, `offset ${rcvdOffset} does not match expected block number ${i}`);
+            blockOffset = rcvdOffset + baseBlockLen;
             const rcvdPayload = pieceMsg.payload.subarray(8);
             (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(rcvdPayload.length === blockLen, `rcvdPayload.length ${rcvdPayload.length} !== blockLen ${blockLen}`);
-            blocks[rcvdOffset] = rcvdPayload;
+            blocks[i] = rcvdPayload;
             copied += rcvdPayload.length;
         }
         const pieceBuff = Buffer.concat(blocks);
@@ -712,10 +714,7 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
             const hasher = (0, ($parcel$interopDefault($jC3rJ$nodecrypto))).createHash("sha1");
             hasher.update(pieceBuff);
             const sha1 = hasher.digest("hex");
-        // assert(
-        //   sha1 === this.torrent.pieceHashes[pieceNum],
-        //   `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`,
-        // );
+            (0, ($parcel$interopDefault($jC3rJ$nodeassert)))(sha1 === this.torrent.pieceHashes[pieceNum], `sha1 ${sha1} !== expected ${this.torrent.pieceHashes[pieceNum]}`);
         }
         return pieceBuff;
     }
@@ -755,13 +754,12 @@ class $a1d9e98063dd4481$export$d84cf184fade0488 {
             });
         });
     }
-    // TODO: loop - each piece has multiple blocks, the last may not be a full size block
-    async sendRequest(piece = 0, block = 0, blockLen = 16384) {
+    async sendRequest(piece = 0, blockOffset = 0, blockLen = 16384) {
         if (this.choke) throw new Error("sent request while choked");
-        console.error(`Sending request for piece ${piece}, block ${block}, length ${blockLen}`);
+        console.error(`Sending request for piece ${piece}, blockOffset ${blockOffset}, length ${blockLen}`);
         const req = Buffer.alloc(12);
         req.writeUInt32BE(piece, 0);
-        req.writeUInt32BE(block, 4);
+        req.writeUInt32BE(blockOffset, 4);
         req.writeUInt32BE(blockLen, 8);
         return this.sendMessage((0, $89331aaf2ca9d62f$export$5eb068567d1a68bc).Request, req);
     }
